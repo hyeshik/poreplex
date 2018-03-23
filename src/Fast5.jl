@@ -50,12 +50,12 @@ mutable struct Fast5Reader
         channel_number, range, sampling_rate, digitization, offset =
             read_fast5_attributes(h5)
 
-        return new(filename, h5, channel_number, range, sampling_rate,
-                   digitization, offset)
+        new(filename, h5, channel_number, range, sampling_rate,
+            digitization, offset)
     end
 end
 
-function load_raw_signals(reader::Fast5Reader, readnumber::Int64,
+function load_raw_signal(reader::Fast5Reader, readnumber::Int64,
                           duration::Float64)::Array{Int16}
     sigdataset = reader.h5["Raw/Reads/Read_$readnumber/Signal"]
     sampled_length = length(sigdataset)
@@ -65,8 +65,8 @@ function load_raw_signals(reader::Fast5Reader, readnumber::Int64,
     sigdataset[1:ret_length]
 end
 
-function load_scaled_raw_signals(reader::Fast5Reader, readnumber::Int64,
+function load_scaled_raw_signal(reader::Fast5Reader, readnumber::Int64,
                                  duration::Float64)::Array{Float64}
-    (load_raw_signals(reader, readnumber, duration) + reader.offset) * (
+    (load_raw_signal(reader, readnumber, duration) + reader.offset) * (
         reader.signal_range / reader.digitization)
 end
