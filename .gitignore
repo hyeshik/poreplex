@@ -3,3 +3,5 @@ build
 dist
 old
 *.egg-info
+contrib/eigen
+contrib/eigen.tar.bz2
