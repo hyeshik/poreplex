@@ -56,6 +56,9 @@ class ReadDB
         // returns the number of reads in the database
         size_t get_num_reads() const { return m_data.size(); }
  
+        // sets an intercepting sequence to bypass the fasta lookup
+        void set_intercepting_sequence(const std::string& sequence);
+
         //
         // Summaries and sanity checks
         //
@@ -82,6 +85,9 @@ class ReadDB
 
         //
         faidx_t* m_fai;
+
+        //
+        std::string m_intercepting_sequence;
 };
 
 #endif

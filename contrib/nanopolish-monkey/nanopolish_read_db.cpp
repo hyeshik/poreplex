@@ -210,6 +210,9 @@ std::string ReadDB::get_signal_path(const std::string& read_id) const
 //
 std::string ReadDB::get_read_sequence(const std::string& read_id) const
 {
+    if (m_intercepting_sequence.size() > 0)
+        return m_intercepting_sequence;
+
     assert(m_fai != NULL);
     
     int length;
@@ -226,6 +229,12 @@ std::string ReadDB::get_read_sequence(const std::string& read_id) const
     std::string out(seq);
     free(seq);
     return out;   
+}
+
+//
+void ReadDB::set_intercepting_sequence(const std::string& sequence)
+{
+    m_intercepting_sequence = sequence;
 }
 
 //
