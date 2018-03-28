@@ -1,3 +1,6 @@
 [submodule "contrib/fast5"]
 	path = contrib/fast5
 	url = https://github.com/mateidavid/fast5.git
+[submodule "nanopolish-sidehack"]
+	path = contrib/nanopolish
+	url = git@cowork.narrykim.org:nanopore/nanopolish-sidehack.git
