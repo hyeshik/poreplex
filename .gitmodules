@@ -1,6 +1,3 @@
-[submodule "contrib/nanopolish"]
-	path = contrib/nanopolish
-	url = https://github.com/jts/nanopolish.git
 [submodule "contrib/fast5"]
 	path = contrib/fast5
 	url = https://github.com/mateidavid/fast5.git
