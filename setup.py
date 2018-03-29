@@ -178,6 +178,9 @@ setup(
         'snakemake >= 4.4.0',
         'ont-fast5-api >= 0.4.1',
     ],
+    setup_requires=[
+        'pkgconfig >= 1.3.1',
+    ],
     entry_points={
         'console_scripts': [
             'octopus = octopus.demux_script:main'

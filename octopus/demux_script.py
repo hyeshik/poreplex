@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 #
 # Copyright (c) 2018 Hyeshik Chang
 #
@@ -23,7 +22,78 @@
 
 import argparse
 import sys
+import os
+from concurrent import futures
+from . import __version__
 
+
+def errx(msg):
+    print(msg, file=sys.stderr)
+    sys.exit(254)
+
+
+def process_file(inputfile):
+    from octopus.npinterface import get_calibration
+
+    print(inputfile, *get_calibration(inputfile))
+
+
+def process_batch(inputfiles):
+    for f5file in inputfiles:
+        process_file(f5file)
+
+
+def show_banner():
+    print("""
+\x1b[1mOctopus\x1b[0m version {version} by Hyeshik Chang
+- A demultiplexer for nanopore direct RNA sequencing
+""".format(version=__version__))
+
+
+def main_loop(args):
+    if not args.quiet:
+        show_banner()
+
+    if not os.path.isdir(args.input):
+        errx('ERROR: Cannot open the input directory {}.'.format(args.input))
+
+    if not os.path.isdir(args.output):
+        try:
+            os.makedirs(args.output)
+        except:
+            errx('ERROR: Failed to create the output directory {}.'.format(args.output))
+
+    no_parallel = args.parallel <= 1
+
+    with futures.ProcessPoolExecutor(args.parallel) as executor:
+        jobs = []
+        batch_queue = []
+
+        # Scan FAST5 files and send job chunks to the worker queue.
+        def flush():
+            if batch_queue:
+                if no_parallel:
+                    job = process_batch(batch_queue[:])
+                else:
+                    job = executor.submit(process_batch, batch_queue[:])
+                jobs.append(job)
+                del batch_queue[:]
+
+        for path, dirs, files in os.walk(args.input):
+            for fn in files:
+                if fn.lower().endswith('.fast5'):
+                    f5path = os.path.join(path, fn)
+                    batch_queue.append(f5path)
+                    if len(batch_queue) >= args.batch_chunk:
+                        flush()
+        else:
+            flush()
+
+        for job in jobs:
+            if job is not None:
+                job.result() # TODO: interpret the result.
+
+    print('Done.')
 
 def main():
     parser = argparse.ArgumentParser(
@@ -34,7 +104,13 @@ def main():
                         help='Path to the directory with the input FAST5 files.')
     parser.add_argument('-o', '--output', required=True,
                         help='Output directory path')
+    parser.add_argument('-p', '--parallel', default=1, type=int,
+                        help='Number of worker processes (default: 1)')
+    parser.add_argument('--batch-chunk', default=32, type=int,
+                        help='Number of files in a single batch (default: 32)')
+    parser.add_argument('-q', '--quiet', default=False, action='store_true',
+                        help='Suppress non-error messages.')
 
     args = parser.parse_args(sys.argv[1:])
-    print(args)
+    main_loop(args)
 

@@ -33,27 +33,24 @@
 static PyObject *ErrorObject;
 
 PyDoc_STRVAR(npinterface_get_calibration_doc,
-"get_calibration(fast5, sequence)\n\
+"get_calibration(fast5)\n\
 \n\
 Return the signal calibration parameters from nanopolish.");
 
 static PyObject *
 npinterface_get_calibration(PyObject *self, PyObject *args)
 {
-    char *fast5, *sequence;
+    char *fast5;
     int res;
 
-    if (!PyArg_ParseTuple(args, "ss:get_calibration",
-                          &fast5, &sequence))
+    if (!PyArg_ParseTuple(args, "s:get_calibration", &fast5))
         return NULL;
 
     ReadDB readdb;
     std::string readid="octopus";
     std::string fast5_cpp=fast5;
-    std::string sequence_cpp=sequence;
 
     readdb.add_signal_path(readid, fast5_cpp);
-    readdb.set_intercepting_sequence(sequence_cpp);
 
     SquiggleRead sr(readid, readdb, SRF_LOAD_RAW_SAMPLES);
 
