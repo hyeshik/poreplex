@@ -23,8 +23,10 @@
 import argparse
 import sys
 import os
+import yaml
 from concurrent import futures
 from . import __version__
+from .signal_analyzer import SignalAnalyzer
 
 
 def errx(msg):
@@ -33,6 +35,8 @@ def errx(msg):
 
 
 def process_file(inputfile):
+    analyzer = SignalAnalyzer(inputfile)
+
     from octopus.npinterface import get_calibration
 
     print(inputfile, *get_calibration(inputfile))
@@ -62,6 +66,12 @@ def main_loop(args):
             os.makedirs(args.output)
         except:
             errx('ERROR: Failed to create the output directory {}.'.format(args.output))
+
+    if not args.config:
+        print(__module__)
+
+    raise SystemExit
+
 
     no_parallel = args.parallel <= 1
 
@@ -108,6 +118,8 @@ def main():
                         help='Number of worker processes (default: 1)')
     parser.add_argument('--batch-chunk', default=32, type=int,
                         help='Number of files in a single batch (default: 32)')
+    parser.add_argument('-c', '--config', default='',
+                        help='Path to signal processing configuration.')
     parser.add_argument('-q', '--quiet', default=False, action='store_true',
                         help='Suppress non-error messages.')
 

@@ -4,3 +4,6 @@
 [submodule "nanopolish-sidehack"]
 	path = contrib/nanopolish
 	url = git@cowork.narrykim.org:nanopore/nanopolish-sidehack.git
+[submodule "contrib/htslib"]
+	path = contrib/htslib
+	url = https://github.com/samtools/htslib.git
