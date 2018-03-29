@@ -64,18 +64,6 @@ def prepare_htslib(sourcedir):
 #define HAVE_DRAND48 1
 """)
 
-#    if os.path.exists(os.path.join(destdir, 'lib/libhts.a')):
-#        return
-#
-#    destdir_abs = os.path.abspath(destdir)
-#    patched_makefile = os.path.join(destdir_abs, 'Makefile.libhts')
-#
-#    makefile = open(os.path.join(sourcedir, 'Makefile')).read()
-#    open(patched_makefile, 'w').write(
-#        re.sub('(\nCFLAGS.*)', lambda m: m.group() + ' -fPIC -DPIC',
-#               makefile))
-#    sp.check_call(['make', '-f', patched_makefile, '-j4'], cwd=sourcedir)
-
 
 nanopolish_source_files = """
     src/nanopolish_variant_db.cpp
