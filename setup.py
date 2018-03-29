@@ -55,7 +55,8 @@ extmod = Extension('octopus.npinterface',
                    library_dirs=[BUILD_DIR + '/lib'],
                    libraries=['z', 'rt', 'dl'], #, 'z', 'rt', 'dl'],
                    extra_link_args=[
-                        BUILD_DIR + '/lib/libhdf5.a', '-fopenmp'],
+                        '-Wl,--strip-all', BUILD_DIR + '/lib/libhdf5.a',
+                        '-fopenmp'],
                    sources=["src/npinterface.cc"] + [
                     os.path.join(NANOPOLISH_DIR, d)
                     for d in nanopolish_source_files] + [
@@ -94,6 +95,7 @@ setup(
         'snakemake >= 4.4.0',
         'ont-fast5-api >= 0.4.1',
         'PyYAML >= 3.0',
+        'numpy >= 1.14',
     ],
     entry_points={
         'console_scripts': [

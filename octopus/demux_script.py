@@ -25,6 +25,7 @@ import sys
 import os
 import yaml
 from concurrent import futures
+from octopus.npinterface import get_calibration
 from . import __version__
 from .signal_analyzer import SignalAnalyzer
 
@@ -34,17 +35,14 @@ def errx(msg):
     sys.exit(254)
 
 
-def process_file(inputfile):
-    analyzer = SignalAnalyzer(inputfile)
-
-    from octopus.npinterface import get_calibration
-
-    print(inputfile, *get_calibration(inputfile))
+def process_file(inputfile, config):
+    analyzer = SignalAnalyzer(inputfile, config)
+    analyzer.detect_partitions()
 
 
-def process_batch(inputfiles):
+def process_batch(inputfiles, config):
     for f5file in inputfiles:
-        process_file(f5file)
+        process_file(f5file, config)
 
 
 def show_banner():
@@ -52,6 +50,20 @@ def show_banner():
 \x1b[1mOctopus\x1b[0m version {version} by Hyeshik Chang
 - A demultiplexer for nanopore direct RNA sequencing
 """.format(version=__version__))
+
+
+def load_config(args):
+    presets_dir = os.path.join(os.path.dirname(__file__), 'presets')
+    if not args.config:
+        config_path = os.path.join(presets_dir, 'rna-r941.cfg')
+    elif os.path.isfile(args.config):
+        config_path = args.config
+    elif os.path.isfile(os.path.join(presets_dir, args.config + '.cfg')):
+        config_path = os.path.join(presets_dir, args.config + '.cfg')
+    else:
+        errx('ERROR: Cannot find a configuration in {}.'.format(args.config))
+
+    return yaml.load(open(config_path))
 
 
 def main_loop(args):
@@ -67,11 +79,7 @@ def main_loop(args):
         except:
             errx('ERROR: Failed to create the output directory {}.'.format(args.output))
 
-    if not args.config:
-        print(__module__)
-
-    raise SystemExit
-
+    config = load_config(args)
 
     no_parallel = args.parallel <= 1
 
@@ -83,9 +91,9 @@ def main_loop(args):
         def flush():
             if batch_queue:
                 if no_parallel:
-                    job = process_batch(batch_queue[:])
+                    job = process_batch(batch_queue[:], config)
                 else:
-                    job = executor.submit(process_batch, batch_queue[:])
+                    job = executor.submit(process_batch, batch_queue[:], config)
                 jobs.append(job)
                 del batch_queue[:]
 
