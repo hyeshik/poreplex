@@ -35,14 +35,15 @@ def errx(msg):
     sys.exit(254)
 
 
-def process_file(inputfile, config):
-    analyzer = SignalAnalyzer(inputfile, config)
-    analyzer.detect_partitions()
+def process_file(inputfile, analyzer):
+    analysis = analyzer.process(inputfile)
 
 
 def process_batch(inputfiles, config):
+    analyzer = SignalAnalyzer(config)
+
     for f5file in inputfiles:
-        process_file(f5file, config)
+        process_file(f5file, analyzer)
 
 
 def show_banner():
@@ -80,6 +81,12 @@ def main_loop(args):
             errx('ERROR: Failed to create the output directory {}.'.format(args.output))
 
     config = load_config(args)
+    config['quiet'] = args.quiet
+    if args.dump_signal is not None:
+        config['sigdump_file'] = open(args.dump_signal, 'w')
+        print('level', 'state', 'next_state', sep='\t', file=config['sigdump_file'])
+    else:
+        config['sigdump_file'] = None
 
     no_parallel = args.parallel <= 1
 
@@ -109,7 +116,7 @@ def main_loop(args):
 
         for job in jobs:
             if job is not None:
-                job.result() # TODO: interpret the result.
+                job.result() # TODO: interpret the result. issue #1
 
     print('Done.')
 
@@ -128,9 +135,14 @@ def main():
                         help='Number of files in a single batch (default: 32)')
     parser.add_argument('-c', '--config', default='',
                         help='Path to signal processing configuration.')
+    parser.add_argument('--dump-signal', default=None,
+                        help='Path to write signal dumps for training (default: None)')
     parser.add_argument('-q', '--quiet', default=False, action='store_true',
                         help='Suppress non-error messages.')
 
     args = parser.parse_args(sys.argv[1:])
+    if args.dump_signal is not None:
+        # Signal dump requires a non-parallel run.
+        args.parallel = 1
     main_loop(args)
 
