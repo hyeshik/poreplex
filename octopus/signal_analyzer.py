@@ -25,28 +25,9 @@ from ont_fast5_api.fast5_file import Fast5File
 from .npinterface import get_calibration
 import numpy as np
 from collections import deque
+from scipy.signal import medfilt
 
 __all__ = ['SignalAnalyzer']
-
-
-def median_filter(sequence, window=5):
-    wingsize = window // 2
-    q = deque()
-    r = []
-
-    for s in sequence:
-        q.append(s)
-        #print(np.median(q))
-        if len(q) > wingsize:
-            r.append(np.median(q))
-        if len(q) >= window:
-            q.popleft()
-
-    for i in range(wingsize):
-        r.append(np.median(q))
-        q.popleft()
-
-    return r
 
 
 class SignalAnalyzer:
@@ -92,7 +73,7 @@ class SignalAnalyzer:
         if len(outlierpos) > 0:
             sig[outlierpos] = 100.
         filter_size = self.config_headproc['median_filter_size']
-        sig_filtered = np.array(median_filter(sig, filter_size))
+        sig_filtered = np.array(medfilt(sig, filter_size))
         first_index = peek_start + filter_size // 2
 
         print(sig_filtered)

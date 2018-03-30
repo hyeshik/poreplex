@@ -96,6 +96,7 @@ setup(
         'ont-fast5-api >= 0.4.1',
         'PyYAML >= 3.0',
         'numpy >= 1.14',
+        'scipy >= 1.0',
     ],
     entry_points={
         'console_scripts': [
