@@ -109,19 +109,10 @@ nanopolish_source_files = """
 """.split()
 
 htslib_source_files = """
-    hts.c hfile.c hfile_net.c bgzf.c
-    thread_pool.c cram/pooled_alloc.c faidx.c kstring.c
-    sam.c cram/cram_io.c
-    cram/string_alloc.c cram/sam_header.c
-    cram/open_trace_file.c
-    cram/cram_index.c
-    cram/cram_encode.c
-    multipart.c textutils.c md5.c cram/mFILE.c
-    cram/cram_stats.c cram/cram_decode.c
-    knetfile.c
-    cram/cram_samtools.c
-    cram/files.c
-    hts_os.c
-    cram/cram_codecs.c
-    cram/rANS_static.c
+    hts.c hfile.c hfile_net.c bgzf.c thread_pool.c cram/pooled_alloc.c
+    faidx.c kstring.c sam.c cram/cram_io.c cram/string_alloc.c
+    cram/sam_header.c cram/open_trace_file.c cram/cram_index.c
+    cram/cram_encode.c multipart.c textutils.c md5.c cram/mFILE.c
+    cram/cram_stats.c cram/cram_decode.c knetfile.c cram/cram_samtools.c
+    cram/files.c hts_os.c cram/cram_codecs.c cram/rANS_static.c
 """.split()
