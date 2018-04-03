@@ -62,7 +62,7 @@ static PyObject *
 SquiggleRead_get_events(SquiggleReadObject *self, PyObject *args)
 {
     double ev_start, ev_end;
-    size_t i, matchingevents;
+    size_t matchingevents, totalevents;
     Py_ssize_t evidx;
     std::vector<SquiggleEvent> *events;
     std::vector<SquiggleEvent>::iterator it;
@@ -72,6 +72,7 @@ SquiggleRead_get_events(SquiggleReadObject *self, PyObject *args)
         return NULL;
 
     events = &self->sr->events[0];
+    totalevents = events->size();
 
     matchingevents = 0;
     /* Count matching events in the given range for calculation of the output
@@ -86,8 +87,9 @@ SquiggleRead_get_events(SquiggleReadObject *self, PyObject *args)
     if (evlist == NULL)
         return NULL;
 
-    evidx =0; i = 0;
-    for (it = events->begin(); it != events->end(); it++, evidx++) {
+    /* Put items in reverse order. Nanopolish keeps events in 5'->3' order. */
+    evidx = totalevents - 1;
+    for (it = events->begin(); it != events->end(); it++, evidx--) {
         if (it->start_time + it->duration <= ev_start || it->start_time >= ev_end)
             continue;
 
@@ -99,7 +101,7 @@ SquiggleRead_get_events(SquiggleReadObject *self, PyObject *args)
             Py_DECREF(evlist);
             return NULL;
         }
-        PyList_SET_ITEM(evlist, i++, tup);
+        PyList_SET_ITEM(evlist, --matchingevents, tup);
     }
 
     return evlist;
@@ -111,7 +113,7 @@ SquiggleRead_get_scaled_events(SquiggleReadObject *self, PyObject *args)
     double ev_start, ev_end;
     double scale, shift, drift, scale_sd;
     Py_ssize_t evidx;
-    size_t i, matchingevents;
+    size_t matchingevents, totalevents;
     std::vector<SquiggleEvent> *events;
     std::vector<SquiggleEvent>::iterator it;
     PyObject *evlist;
@@ -120,6 +122,7 @@ SquiggleRead_get_scaled_events(SquiggleReadObject *self, PyObject *args)
         return NULL;
 
     events = &self->sr->events[0];
+    totalevents = events->size();
 
     matchingevents = 0;
     /* Count matching events in the given range for calculation of the output
@@ -140,8 +143,9 @@ SquiggleRead_get_scaled_events(SquiggleReadObject *self, PyObject *args)
     drift = self->sr->scalings[0].drift;
     scale_sd = self->sr->scalings[0].scale_sd;
 
-    i = 0; evidx = 0;
-    for (it = events->begin(); it != events->end(); it++, evidx++) {
+    /* Put items in reverse order. Nanopolish keeps events in 5'->3' order. */
+    evidx = totalevents - 1;
+    for (it = events->begin(); it != events->end(); it++, evidx--) {
         float scaled_mean, scaled_stdv;
 
         if (it->start_time + it->duration <= ev_start || it->start_time >= ev_end)
@@ -158,10 +162,90 @@ SquiggleRead_get_scaled_events(SquiggleReadObject *self, PyObject *args)
             Py_DECREF(evlist);
             return NULL;
         }
-        PyList_SET_ITEM(evlist, i++, tup);
+        PyList_SET_ITEM(evlist, --matchingevents, tup);
     }
 
     return evlist;
+}
+
+static PyObject *
+SquiggleRead_get_base_to_event_map(SquiggleReadObject *self, PyObject *args)
+{
+    std::vector<EventRangeForBase> *maps;
+    std::vector<EventRangeForBase>::iterator it;
+    PyObject *ret;
+    int ev_start, ev_end, ev_rstart, ev_rend;
+    Py_ssize_t evsize, match_start, match_end, i, kmerpos;
+    size_t oi, kmercount;
+
+    if (!PyArg_ParseTuple(args, "ii:get_scaled_events", &ev_start, &ev_end))
+        return NULL;
+
+    evsize = self->sr->events[0].size();
+    ev_rstart = evsize - ev_end;
+    ev_rend = evsize - ev_start;
+
+// 0123456789012345
+//   |---->          fwd: [2, 7)   rstart = size - end
+//  <----|           rev: [9, 14)     9   =  16  - 7   
+// 5432109876543210  size: 16      rend = size - start
+//                                   14    16     2
+
+    /* Measure the span in kmer space of requested event range. */
+    maps = &self->sr->base_to_event_map;
+    match_start = match_end = -1;
+    for (i = 0, it = maps->begin(); it != maps->end(); i++, it++) {
+        /* EventRangeForBase: right-incl, ev_rstart/ev_rend: right-nonincl */
+        if (it->indices[0].start < 0 || it->indices[0].stop < ev_rstart)
+            continue;
+        else if (it->indices[0].start >= ev_rend)
+            break;
+
+        match_end = i + 1;
+        if (match_start < 0)
+            match_start = i;
+    }
+
+    ret = PyList_New(match_end - match_start);
+    if (ret == NULL)
+        return NULL;
+
+    std::string read_sequence_rev(self->sr->read_sequence.c_str());
+    std::reverse(read_sequence_rev.begin(), read_sequence_rev.end());
+    const char *readseq=read_sequence_rev.c_str();
+
+    oi = match_end - match_start;
+    kmercount = maps->size();
+    for (i = match_start; i < match_end; i++) {
+        EventRangeForBase *evmap=&maps->at(i);
+        PyObject *idxmap, *kmer;
+        int start_tr, stop_tr;
+
+        if (evmap->indices[0].start < 0)
+            start_tr = stop_tr = -1;
+        else {
+            start_tr = evsize - evmap->indices[0].stop - 1; /* to non inclusive */
+            stop_tr = evsize - evmap->indices[0].start;
+        }
+
+        /* Build kmer sequence, it's a lot easier here than in the consumer routines. */
+        kmerpos = kmercount - i - 1;
+        kmer = PyUnicode_FromStringAndSize(readseq + kmerpos, KMER_SIZE);
+        if (kmer == NULL) {
+            Py_DECREF(ret);
+            return NULL;
+        }
+
+        idxmap = Py_BuildValue("nOii", kmerpos, kmer, start_tr, stop_tr);
+        Py_DECREF(kmer);
+        if (idxmap == NULL) {
+            Py_DECREF(ret);
+            return NULL;
+        }
+        PyList_SET_ITEM(ret, --oi, idxmap);
+    }
+
+    return ret;
 }
 
 static PyObject *
@@ -177,6 +261,9 @@ static PyMethodDef SquiggleRead_methods[] = {
     {"get_scaled_events",       (PyCFunction)SquiggleRead_get_scaled_events,
                 METH_VARARGS,
                 PyDoc_STR("get_scaled_events() -> list of (index, start_time, duration, mean, stdv)")},
+    {"get_base_to_event_map",   (PyCFunction)SquiggleRead_get_base_to_event_map,
+                METH_VARARGS,
+                PyDoc_STR("get_base_to_event_map() -> list of (index, kmer, start, stop)")},
     {NULL,                      NULL}
 };
 
@@ -211,44 +298,6 @@ SquiggleRead_get_sample_start_time(SquiggleReadObject *self, void *closure)
 }
 
 static PyObject *
-SquiggleRead_get_base_to_event_map(SquiggleReadObject *self, void *closure)
-{
-    PyObject *ret;
-    size_t i;
-    const char *readseq=self->sr->read_sequence.c_str();
-
-    ret = PyList_New(self->sr->base_to_event_map.size());
-    if (ret == NULL)
-        return NULL;
-
-    for (i = 0; i < self->sr->base_to_event_map.size(); i++) {
-        EventRangeForBase *evmap=&self->sr->base_to_event_map.at(i);
-        PyObject *idxmap, *kmer;
-        int stop_0;
-
-        /* Convert stop to 0-based non-inclusive coordination. */
-        stop_0 = evmap->indices[0].stop < 0 ? -1 : evmap->indices[0].stop + 1;
-
-        /* Build kmer sequence, it's a lot easier here than in the consumer routines. */
-        kmer = PyUnicode_FromStringAndSize(readseq + i, KMER_SIZE);
-        if (kmer == NULL) {
-            Py_DECREF(ret);
-            return NULL;
-        }
-
-        idxmap = Py_BuildValue("Oii", kmer,
-                               (int)evmap->indices[0].start, stop_0);
-        Py_DECREF(kmer);
-        if (idxmap == NULL) {
-            Py_DECREF(ret);
-            return NULL;
-        }
-        PyList_SET_ITEM(ret, i, idxmap);
-    }
-    return ret;
-}
-
-static PyObject *
 SquiggleRead_getattro(SquiggleReadObject *self, PyObject *name)
 {
     return PyObject_GenericGetAttr((PyObject *)self, name);
@@ -269,9 +318,6 @@ static PyGetSetDef SquiggleRead_getsetlist[] = {
      NULL, NULL},
     {"sample_start_time",
      (getter)SquiggleRead_get_sample_start_time, NULL,
-     NULL, NULL},
-    {"base_to_event_map",
-     (getter)SquiggleRead_get_base_to_event_map, NULL,
      NULL, NULL},
     {NULL} /* Sentinel */
 };
