@@ -30,6 +30,8 @@
 #include "nanopolish_common.h"
 #include "nanopolish_squiggle_read.h"
 
+#define KMER_SIZE       5
+
 static PyObject *ErrorObject;
 
 typedef struct {
@@ -60,35 +62,103 @@ static PyObject *
 SquiggleRead_get_events(SquiggleReadObject *self, PyObject *args)
 {
     double ev_start, ev_end;
-    size_t i, totalevents;
+    size_t i, matchingevents;
+    Py_ssize_t evidx;
     std::vector<SquiggleEvent> *events;
+    std::vector<SquiggleEvent>::iterator it;
     PyObject *evlist;
 
     if (!PyArg_ParseTuple(args, "dd:get_events", &ev_start, &ev_end))
         return NULL;
 
-    evlist = PyList_New(0);
+    events = &self->sr->events[0];
+
+    matchingevents = 0;
+    /* Count matching events in the given range for calculation of the output
+     * buffer size. */
+    for (it = events->begin(); it != events->end(); it++) {
+        if (it->start_time + it->duration <= ev_start || it->start_time >= ev_end)
+            continue;
+        matchingevents++;
+    }
+
+    evlist = PyList_New(matchingevents);
     if (evlist == NULL)
         return NULL;
 
-    events = &self->sr->events[0];
-    totalevents = events->size();
-    for (i = 0; i < totalevents; i++) {
-        SquiggleEvent ev=events->at(i);
-        PyObject *tup;
-
-        if (ev.start_time + ev.duration <= ev_start || ev.start_time >= ev_end)
+    evidx =0; i = 0;
+    for (it = events->begin(); it != events->end(); it++, evidx++) {
+        if (it->start_time + it->duration <= ev_start || it->start_time >= ev_end)
             continue;
 
-        tup = Py_BuildValue("ffdff", ev.mean, ev.stdv, ev.start_time,
-                            ev.duration, ev.log_stdv);
-        if (tup == NULL ||
-                PyList_Append(evlist, tup) != 0) {
+        PyObject *tup;
+        tup = Py_BuildValue("ndffff", evidx, it->start_time, it->duration,
+                            it->mean, it->stdv, it->log_stdv);
+        if (tup == NULL) {
             Py_XDECREF(tup);
             Py_DECREF(evlist);
             return NULL;
         }
-        Py_DECREF(tup);
+        PyList_SET_ITEM(evlist, i++, tup);
+    }
+
+    return evlist;
+}
+
+static PyObject *
+SquiggleRead_get_scaled_events(SquiggleReadObject *self, PyObject *args)
+{
+    double ev_start, ev_end;
+    double scale, shift, drift, scale_sd;
+    Py_ssize_t evidx;
+    size_t i, matchingevents;
+    std::vector<SquiggleEvent> *events;
+    std::vector<SquiggleEvent>::iterator it;
+    PyObject *evlist;
+
+    if (!PyArg_ParseTuple(args, "dd:get_scaled_events", &ev_start, &ev_end))
+        return NULL;
+
+    events = &self->sr->events[0];
+
+    matchingevents = 0;
+    /* Count matching events in the given range for calculation of the output
+     * buffer size. */
+    for (it = events->begin(); it != events->end(); it++) {
+        if (it->start_time + it->duration <= ev_start || it->start_time >= ev_end)
+            continue;
+        matchingevents++;
+    }
+
+    evlist = PyList_New(matchingevents);
+    if (evlist == NULL)
+        return NULL;
+
+    /* Get scaling parameters from nanopolish SquiggleRead */
+    scale = self->sr->scalings[0].scale;
+    shift = self->sr->scalings[0].shift;
+    drift = self->sr->scalings[0].drift;
+    scale_sd = self->sr->scalings[0].scale_sd;
+
+    i = 0; evidx = 0;
+    for (it = events->begin(); it != events->end(); it++, evidx++) {
+        float scaled_mean, scaled_stdv;
+
+        if (it->start_time + it->duration <= ev_start || it->start_time >= ev_end)
+            continue;
+
+        scaled_mean = ((it->mean - it->start_time * drift) - shift) / scale;
+        scaled_stdv = it->stdv / scale_sd;
+
+        PyObject *tup;
+        tup = Py_BuildValue("ndfff", evidx, it->start_time, it->duration,
+                            scaled_mean, scaled_stdv);
+        if (tup == NULL) {
+            Py_XDECREF(tup);
+            Py_DECREF(evlist);
+            return NULL;
+        }
+        PyList_SET_ITEM(evlist, i++, tup);
     }
 
     return evlist;
@@ -103,7 +173,10 @@ SquiggleRead_get_read_sequence(SquiggleReadObject *self, void *closure)
 static PyMethodDef SquiggleRead_methods[] = {
     {"get_events",              (PyCFunction)SquiggleRead_get_events,
                 METH_VARARGS,
-                PyDoc_STR("get_events() -> list of (mean, stdv, start_time, duration, log_stdv)")},
+                PyDoc_STR("get_events() -> list of (index, start_time, duration, mean, stdv, log_stdv)")},
+    {"get_scaled_events",       (PyCFunction)SquiggleRead_get_scaled_events,
+                METH_VARARGS,
+                PyDoc_STR("get_scaled_events() -> list of (index, start_time, duration, mean, stdv)")},
     {NULL,                      NULL}
 };
 
@@ -142,6 +215,7 @@ SquiggleRead_get_base_to_event_map(SquiggleReadObject *self, void *closure)
 {
     PyObject *ret;
     size_t i;
+    const char *readseq=self->sr->read_sequence.c_str();
 
     ret = PyList_New(self->sr->base_to_event_map.size());
     if (ret == NULL)
@@ -149,25 +223,26 @@ SquiggleRead_get_base_to_event_map(SquiggleReadObject *self, void *closure)
 
     for (i = 0; i < self->sr->base_to_event_map.size(); i++) {
         EventRangeForBase *evmap=&self->sr->base_to_event_map.at(i);
+        PyObject *idxmap, *kmer;
+        int stop_0;
 
-        PyObject *basestart, *basestop;
-        basestart = basestop = NULL;
-        if ((basestart = PyLong_FromLong(evmap->indices[0].start)) == NULL ||
-            (basestop = PyLong_FromLong(evmap->indices[0].stop)) == NULL) {
-            Py_XDECREF(basestart); Py_XDECREF(basestop);
+        /* Convert stop to 0-based non-inclusive coordination. */
+        stop_0 = evmap->indices[0].stop < 0 ? -1 : evmap->indices[0].stop + 1;
+
+        /* Build kmer sequence, it's a lot easier here than in the consumer routines. */
+        kmer = PyUnicode_FromStringAndSize(readseq + i, KMER_SIZE);
+        if (kmer == NULL) {
             Py_DECREF(ret);
             return NULL;
         }
 
-        PyObject *idxmap=PyTuple_New(2);
+        idxmap = Py_BuildValue("Oii", kmer,
+                               (int)evmap->indices[0].start, stop_0);
+        Py_DECREF(kmer);
         if (idxmap == NULL) {
-            Py_DECREF(basestart); Py_DECREF(basestop);
             Py_DECREF(ret);
             return NULL;
         }
-
-        PyTuple_SET_ITEM(idxmap, 0, basestart);
-        PyTuple_SET_ITEM(idxmap, 1, basestop);
         PyList_SET_ITEM(ret, i, idxmap);
     }
     return ret;
