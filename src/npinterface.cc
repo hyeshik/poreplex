@@ -36,7 +36,6 @@ typedef struct {
     PyObject_HEAD
     SquiggleRead *sr;
     ReadDB *readdb;
-    PyObject *attrdict;
 } SquiggleReadObject;
 
 #define SquiggleReadObject_Check(v)     (Py_TYPE(v) == &SquiggleRead_Type)
@@ -53,9 +52,6 @@ SquiggleRead_dealloc(SquiggleReadObject *self)
     if (self->readdb != NULL)
         delete self->readdb;
     self->readdb = NULL;
-
-    Py_XDECREF(self->attrdict);
-    self->attrdict = NULL;
 
     PyObject_Del(self);
 }
@@ -266,12 +262,6 @@ newSquiggleRead(PyObject *_, PyObject *args)
     self = PyObject_New(SquiggleReadObject, &SquiggleRead_Type);
     if (self == NULL)
         return NULL;
-
-    self->attrdict = PyDict_New();
-    if (self->attrdict == NULL) {
-        Py_DECREF(self);
-        return NULL;
-    }
 
     self->readdb = new ReadDB();
     if (self->readdb == NULL) {
