@@ -251,7 +251,9 @@ SquiggleRead_get_base_to_event_map(SquiggleReadObject *self, PyObject *args)
 static PyObject *
 SquiggleRead_get_read_sequence(SquiggleReadObject *self, void *closure)
 {
-    return PyUnicode_FromString(self->sr->read_sequence.c_str());
+    std::string read_sequence_rev(self->sr->read_sequence.c_str());
+    std::reverse(read_sequence_rev.begin(), read_sequence_rev.end());
+    return PyUnicode_FromString(read_sequence_rev.c_str());
 }
 
 static PyMethodDef SquiggleRead_methods[] = {
