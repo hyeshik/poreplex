@@ -1,12 +1,3 @@
-[submodule "contrib/fast5"]
-	path = contrib/fast5
-	url = https://github.com/mateidavid/fast5.git
-[submodule "nanopolish-sidehack"]
-	path = contrib/nanopolish
-	url = git@cowork.narrykim.org:nanopore/nanopolish-sidehack.git
-[submodule "contrib/htslib"]
-	path = contrib/htslib
-	url = https://github.com/samtools/htslib.git
 [submodule "octopus/kmer_models"]
 	path = octopus/kmer_models
 	url = https://github.com/nanoporetech/kmer_models.git
