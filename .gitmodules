@@ -7,3 +7,6 @@
 [submodule "contrib/htslib"]
 	path = contrib/htslib
 	url = https://github.com/samtools/htslib.git
+[submodule "octopus/kmer_models"]
+	path = octopus/kmer_models
+	url = https://github.com/nanoporetech/kmer_models.git

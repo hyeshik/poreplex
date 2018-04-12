@@ -22,14 +22,15 @@
 
 from pomegranate import (
     HiddenMarkovModel, GeneralMixtureModel, State, NormalDistribution)
-from ont_fast5_api.fast5_file import Fast5File
-from ont_fast5_api.analysis_tools.basecall_1d import Basecall1DTools
-from .npinterface import get_calibration
 from weakref import proxy
 from itertools import groupby, takewhile
+from ont_fast5_api.fast5_file import Fast5File
+from ont_fast5_api.analysis_tools.basecall_1d import Basecall1DTools
+from statsmodels import api as smapi
+from statsmodels.formula.api import ols
 import numpy as np
-import json
-from collections import deque
+import pandas as pd
+import os
 from scipy.signal import medfilt
 
 __all__ = ['SignalAnalyzer', 'SignalAnalysis']
@@ -45,83 +46,103 @@ class SignalAnalyzer:
 
     def __init__(self, config):
         self.config = config
-        self.partmodel = load_partitioner_model(config['partitioner_model'])
+        self.segmodel = load_segmentation_model(config['segmentation_model'])
+        self.kmermodel = pd.read_table(config['kmer_model'], header=0, index_col=0)
+        self.kmersize = len(self.kmermodel.index[0])
         self.sigdump_file = config['sigdump_file']
 
-    def process(self, filename):
-        siganalysis = SignalAnalysis(filename, self)
+    def process(self, filename, outputprefix):
+        print(filename)
+        siganalysis = SignalAnalysis(filename, outputprefix, self)
         siganalysis.process()
         return siganalysis
 
 
 class SignalAnalysis:
 
-    def __init__(self, filename, analyzer):
+    def __init__(self, filename, outputprefix, analyzer):
         self.filename = filename
-        self.config_headproc = analyzer.config['head_signal_processing']
+        self.outputprefix = outputprefix
+        self.config = analyzer.config['head_signal_processing']
         self.analyzer = proxy(analyzer)
         self.error_flags = set()
-        self.f5 = None
-        self.open_fast5(filename)
+        self.fast5 = None
+        self.open_data_files(filename)
+
+    def __enter__(self):
+        return self
 
     def __del__(self):
-        if self.f5 is not None:
-            self.f5.close()
-            self.f5 = None
+        if self.fast5 is not None:
+            self.fast5.close()
+        return False
 
-    def open_fast5(self, filename):
-        self.f5 = Fast5File(filename, 'r')
-        self.sampling_rate = self.f5.get_channel_info()['sampling_rate']
+    def open_data_files(self, filename):
+        self.fast5 = Fast5File(filename, 'r')
+        self.sampling_rate = self.fast5.get_channel_info()['sampling_rate']
 
-    def load_head_signal(self):
-        assert self.f5 is not None
+    def load_head_events(self):
+        assert self.fast5 is not None
 
-        peek_start = self.config_headproc['peeking_start']
-        peek_end = self.config_headproc['peeking_end']
-        peek_start = int(self.sampling_rate * peek_start)
-        peek_end = int(self.sampling_rate * peek_end)
+        # Load events (15-sample chunks in albacore).
+        with Basecall1DTools(self.fast5) as bcall:
+            events = bcall.get_event_data('template')
+            if events is None:
+                self.error_flags.add('not_basecalled')
+                return
 
-        # Load raw signal and cut out the peek region.
-        sig = self.f5.get_raw_data(scale=True)
-        sig = np.array(sig[peek_start:peek_end])
+            events = pd.DataFrame(events)
+            events['pos'] = np.cumsum(events['move'])
 
-        # Calibrate the signal.
-        event_size, scale, shift, drift, var, scale_sd, var_sd = (
-            get_calibration(self.filename))
-        if event_size == 0: # calibration failed in nanopolish
-            self.error_flags.add('not_calibrated')
-        else:
-            sig = sig - shift
-            if not np.isclose(drift, 0.):
-                sig -= (np.arange(peek_start, peek_start + len(sig)) /
-                        self.sampling_rate) * drift
-            sig /= scale
-
-        # Filter noises
-        outlierpos = np.where((sig > 200.) | (sig < 40.))[0]
-        if len(outlierpos) > 0:
-            sig[outlierpos] = 100.
-        filter_size = self.config_headproc['median_filter_size']
-        sig_filtered = np.array(medfilt(sig, filter_size))
-        first_index = peek_start + filter_size // 2
-
-        return sig_filtered, first_index
-
-    def detect_partitions(self):
-        assert self.f5 is not None
-
-        try:
-            with Basecall1DTools(self.f5) as bcall:
-                sequence = bcall.get_called_sequence('template')[1][::-1]
-                events = bcall.get_event_data('template')
-        except KeyError:
-            self.error_flags.add('not_basecalled')
+        # Rescale the signal to fit in the kmer models
+        scaling_params = self.compute_scaling_parameters(events)
+        if scaling_params is None:
             return
 
-        sig, first_index = self.load_head_signal()
+        duration = np.hstack((np.diff(events['start']), [1]))
+        events['end'] = (events['start'] + duration).astype(np.uint64)
+
+        return (events[events['pos'] <= self.config['segmentation_scan_limit']],
+                np.poly1d(scaling_params))
+
+    def compute_scaling_parameters(self, events):
+        # Get median value for each kmer state and match with the ONT kmer model.
+        events_summarized = events.groupby('pos', sort=False,
+                                           group_keys=False, as_index=False).agg(
+                {'mean': 'median', 'start': 'first', 'model_state': 'first'})
+        if len(events_summarized) < self.config['minimum_kmer_states']:
+            self.error_flags.add('too_few_kmer_states')
+            return
+
+        ev_with_mod = pd.merge(events_summarized, self.analyzer.kmermodel,
+                               how='left', left_on='model_state', right_index=True)
+
+        # Filter outliers out
+        regr = ols('obs ~ model', data={'obs': ev_with_mod['mean'],
+                                        'model': ev_with_mod['level_mean']}).fit()
+        oltest = regr.outlier_test()
+        inliers = ev_with_mod[oltest['bonf(p)'] > self.config['scaler_outlier_adjp']]
+        if len(inliers) < self.config['scaler_minimum_inliers']:
+            self.error_flags.add('scaling_failed')
+            return
+
+        # Do the final regression
+        return np.polyfit(inliers['mean'], inliers['level_mean'], 1)
+
+    def load_raw_signal(self, scaler, start, end):
+        end = min(int(self.fast5.status.read_info[0].duration), end)
+        raw_sig = self.fast5.get_raw_data(start=start, end=end, scale=True)
+        return scaler(raw_sig)
+
+    def detect_segments(self):
+        headevents = self.load_head_events()
+        if headevents is None:
+            return
+        headevents, scaler = headevents
+        headsig = scaler(headevents['mean'])
 
         # Run Viterbi fitting to signal model
-        plogsum, statecalls = self.analyzer.partmodel.viterbi(sig)
+        plogsum, statecalls = self.analyzer.segmodel.viterbi(headsig)
 
         # Summarize state transitions
         sigparts = {}
@@ -129,36 +150,47 @@ class SignalAnalysis:
             first = last = next(positions)
             for last in positions:
                 pass
-            sigparts[state] = (first[0] + first_index, last[0] + first_index + 1)
+            sigparts[state] = (first[0], last[0] + 1)
 
         # TODO: do some quality controls for the state calls by referring to
         # for the time duration, signal emission issue #2
 
-        if 'rna-adapter' not in sigparts:
+        if 'rna-adapter' not in sigparts or 'dna-adapter' not in sigparts:
             self.error_flags.add('adapter_not_detected')
-            return # XXX: there can be more chances to detect barcodes by sequences.
+            return # XXX: there can be more chances than just detecting them by sequences.
 
         barcode_start, barcode_end = sigparts['rna-adapter']
-        # `events' is a 1D array of 1D array rather than a 2D array. Can't use
-        # simple multidimensional subscriptions.
-        barcode_seqpos = EVENT_KMER_SIZE // 2 + sum(
-            ev[EVENT_MOVE_INDEX]
-            for ev in takewhile(lambda ev: ev[EVENT_START_INDEX] < barcode_start,
-                                events))
+        dna_start, dna_end = sigparts['dna-adapter']
 
         if not self.error_flags:
-            print('>{} seqpos={} bpos={} calls={}'.format(self.filename,
-                    barcode_seqpos, barcode_start, sigparts))
-            print(sequence[barcode_seqpos:barcode_seqpos+25][::-1])
+            outdir = os.path.dirname(self.outputprefix)
+            if not os.path.isdir(outdir):
+                try:
+                    os.makedirs(outdir)
+                except OSError:
+                    pass
+
+            with open(self.outputprefix + '-dna.npy', 'wb') as eventsout:
+                dna_raw_start = headevents.iloc[dna_start]['start']
+                dna_raw_end = headevents.iloc[dna_end - 1]['end']
+                dna_signal = self.load_raw_signal(scaler, dna_raw_start, dna_raw_end)
+                np.save(eventsout, dna_signal)
+
+            with open(self.outputprefix + '-rna.npy', 'wb') as eventsout:
+                rna_raw_start = headevents.iloc[barcode_start]['start']
+                rna_raw_end = headevents.iloc[barcode_end - 1]['end']
+                rna_signal = self.load_raw_signal(scaler, rna_raw_start, rna_raw_end)
+                np.save(eventsout, rna_signal)
+
             if self.analyzer.sigdump_file is not None:
-                self.dump_signal_partitions(sig, statecalls[1:])
+                self.dump_signal_segments(sig, statecalls[1:])
 
         #print(''.join(self.error_flags), first_index, sig[:10])
 
     def process(self):
-        self.detect_partitions()
+        self.detect_segments()
 
-    def dump_signal_partitions(self, sig, statecalls):
+    def dump_signal_segments(self, sig, statecalls):
         outfile = self.analyzer.sigdump_file
 
         print(0, 'START', statecalls[0][1].name, sep='\t', file=outfile)
@@ -169,7 +201,7 @@ class SignalAnalysis:
 
 # Internal serialization implementation pomegranate to json does not accurately
 # recover the original. Use a custom format here.
-def load_partitioner_model(modeldata):
+def load_segmentation_model(modeldata):
     model = HiddenMarkovModel('model')
 
     states = {}

@@ -25,7 +25,6 @@ import sys
 import os
 import yaml
 from concurrent import futures
-from octopus.npinterface import get_calibration
 from . import __version__
 from .signal_analyzer import SignalAnalyzer
 
@@ -35,15 +34,15 @@ def errx(msg):
     sys.exit(254)
 
 
-def process_file(inputfile, analyzer):
-    analysis = analyzer.process(inputfile)
+def process_file(inputfile, outputprefix, analyzer):
+    analysis = analyzer.process(inputfile, outputprefix)
 
 
-def process_batch(inputfiles, config):
+def process_batch(tasks, config):
     analyzer = SignalAnalyzer(config)
 
-    for f5file in inputfiles:
-        process_file(f5file, analyzer)
+    for f5file, outputprefix in tasks:
+        process_file(f5file, outputprefix, analyzer)
 
 
 def show_banner():
@@ -64,7 +63,12 @@ def load_config(args):
     else:
         errx('ERROR: Cannot find a configuration in {}.'.format(args.config))
 
-    return yaml.load(open(config_path))
+    config = yaml.load(open(config_path))
+    kmer_models_dir = os.path.join(os.path.dirname(__file__), 'kmer_models')
+    if not os.path.isabs(config['kmer_model']):
+        config['kmer_model'] = os.path.join(kmer_models_dir, config['kmer_model'])
+
+    return config
 
 
 def main_loop(args):
@@ -89,6 +93,7 @@ def main_loop(args):
         config['sigdump_file'] = None
 
     no_parallel = args.parallel <= 1
+    outputdir = args.output
 
     with futures.ProcessPoolExecutor(args.parallel) as executor:
         jobs = []
@@ -105,10 +110,17 @@ def main_loop(args):
                 del batch_queue[:]
 
         for path, dirs, files in os.walk(args.input):
+            if os.path.isabs(path):
+                common = os.path.commonprefix([args.input, path])
+                relpath = path[len(common):].lstrip(os.sep)
+            else:
+                relpath = path
+
             for fn in files:
                 if fn.lower().endswith('.fast5'):
                     f5path = os.path.join(path, fn)
-                    batch_queue.append(f5path)
+                    outputprefix = os.path.join(outputdir, relpath, fn[:-6])
+                    batch_queue.append([f5path, outputprefix])
                     if len(batch_queue) >= args.batch_chunk:
                         flush()
         else:
