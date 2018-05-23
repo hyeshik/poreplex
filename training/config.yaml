@@ -1,0 +1,9 @@
+flowcell: FLO-MIN106
+kit: SQK-RNA001
+data:
+  MXG3.1: /arena/hyeshik/nanopore-201805/20180509-Mux_v5
+reference_transcriptomes:
+  - [hsa, refs/hsa-all.fa.gz]
+  - [xla, refs/xla-all.fa.gz]
+  - [cel, refs/cel-all.fa.gz]
+  - [ath, refs/ath-all.fa.gz]
