@@ -9,7 +9,10 @@ rule all:
         expand('sequences/{name}.fa.gz', name=RUN_NAMES),
         expand('tables/controls-mapq-{name}.txt.gz', name=RUN_NAMES),
         expand('alignments/{name}-{refsample}.bam.bai', name=RUN_NAMES,
-                refsample=sorted(REFERNCE_TRANSCRIPTOME_SEQS))
+                refsample=sorted(REFERNCE_TRANSCRIPTOME_SEQS)),
+        expand('traindata/signals-{name}-s{size}-t{trim}.hdf5',
+                name=RUN_NAMES, size=config['train_data_transform']['subsample_sizes'],
+                trim=config['train_data_transform']['final_trim_sizes'])
 
 include: 'workflows/basecalling.py'
 include: 'workflows/sequence_alignments.py'

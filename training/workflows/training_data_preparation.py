@@ -97,3 +97,72 @@ rule prepare_training_data:
                 {cfg[trim_adapter_length]} {cfg[summarization_window_size]} \
                 {input.catalog} {output} {threads}')
 
+rule subsample_training_inputs:
+    input:
+        catalog='tables/selected-signal-matches-{run}.txt',
+        fulldata='arrays/full-training-{run}.npy'
+    output: 'traindata/signals-{run}-s{size}-t{trim}.hdf5'
+    run:
+        from sklearn.utils import class_weight
+        from sklearn.preprocessing import OneHotEncoder
+        import h5py
+        import numpy as np
+        import pandas as pd
+
+        subsamplesize = int(wildcards.size)
+        trimsize = int(wildcards.trim)
+
+        fullsig = np.load(input.fulldata)[:, -trimsize:, :]
+        allreads = pd.read_table(input.catalog)
+        indexcounts = allreads['_best_score_idxi'].value_counts().clip(None, subsamplesize)
+        testcounts = (indexcounts *
+                      config['train_data_transform']['test_data_split']).astype(np.int64)
+
+        input_signals, input_labels, input_indices = [], [], []
+        for idx, cnt in indexcounts.sort_index().items():
+            readidx = allreads[allreads['_best_score_idxi'] == idx].index.tolist()
+            readidx = np.random.permutation(readidx)[:cnt]
+            input_signals.append(fullsig[readidx])
+            input_indices.append(readidx)
+
+            sublabels = np.array([idx] * cnt, dtype=np.int16)
+            testidx = np.random.permutation(list(range(cnt)))[:testcounts.loc[idx]]
+            sublabels[testidx] = -(sublabels[testidx] + 1)
+            input_labels.append(sublabels)
+
+        input_signals = np.vstack(input_signals)
+        input_labels = np.hstack(input_labels)
+        input_indices = np.hstack(input_indices)
+
+        shuforder = np.random.permutation(list(range(len(input_signals))))
+        input_signals = input_signals[shuforder]
+        input_labels = input_labels[shuforder]
+        input_indices = input_indices[shuforder]
+
+        is_test = input_labels < 0
+        train_labels = input_labels[~is_test]
+        test_labels = -(input_labels[is_test] + 1)
+
+        ohencoder = OneHotEncoder(sparse=False, n_values=len(indexcounts))
+        train_onehot = ohencoder.fit_transform(train_labels[:, np.newaxis]).astype(np.float32)
+        test_onehot = ohencoder.fit_transform(test_labels[:, np.newaxis]).astype(np.float32)
+
+        clsweight = class_weight.compute_class_weight('balanced',
+                        list(range(len(indexcounts))), train_labels)
+
+        with h5py.File(output[0], 'w') as h5:
+            grp = h5.create_group('training')
+            grp['signals'] = input_signals[~is_test]
+            grp['labels'] = train_labels
+            grp['onehot'] = train_onehot
+            grp['readid'] = allreads.iloc[input_indices[~is_test]]['read_id'].astype('S36')
+            grp['weights'] = clsweight
+
+            grp = h5.create_group('testing')
+            grp['signals'] = input_signals[is_test]
+            grp['labels'] = test_labels
+            grp['onehot'] = test_onehot
+            grp['readid'] = allreads.iloc[input_indices[is_test]]['read_id'].astype('S36')
+
+
+# ex: syntax=snakemake sw=4 sts=4 et

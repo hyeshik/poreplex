@@ -18,3 +18,6 @@ adapter_signal_data:
 train_data_transform:
   trim_adapter_length: 15000
   summarization_window_size: 20
+  test_data_split: 0.2
+  subsample_sizes: [2000, 5000, 8000, 10000, 9999999]
+  final_trim_sizes: [500, 750, 1000, 1200, 1499]
