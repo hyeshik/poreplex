@@ -7,3 +7,14 @@ reference_transcriptomes:
   - [xla, refs/xla-all.fa.gz]
   - [cel, refs/cel-all.fa.gz]
   - [ath, refs/ath-all.fa.gz]
+train_data_selection:
+  min_alignment_score: 100
+  min_alignment_score_ratio: 0.8333 # 5/(1+5)
+  min_adapter_length: 4000
+  max_adapter_length: 30000
+  min_sequence_length: 200
+adapter_signal_data:
+  MXG3.1: /casa/hyeshik/p/nara/octopus/training/signal-cuts
+train_data_transform:
+  trim_adapter_length: 15000
+  summarization_window_size: 20
