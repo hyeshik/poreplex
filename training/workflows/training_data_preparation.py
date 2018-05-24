@@ -147,8 +147,10 @@ rule subsample_training_inputs:
         train_onehot = ohencoder.fit_transform(train_labels[:, np.newaxis]).astype(np.float32)
         test_onehot = ohencoder.fit_transform(test_labels[:, np.newaxis]).astype(np.float32)
 
-        clsweight = class_weight.compute_class_weight('balanced',
-                        list(range(len(indexcounts))), train_labels)
+        clsweight_train = class_weight.compute_class_weight('balanced',
+                            list(range(len(indexcounts))), train_labels)
+        clsweight_test = class_weight.compute_class_weight('balanced',
+                            list(range(len(indexcounts))), test_labels)
 
         with h5py.File(output[0], 'w') as h5:
             grp = h5.create_group('training')
@@ -156,13 +158,14 @@ rule subsample_training_inputs:
             grp['labels'] = train_labels
             grp['onehot'] = train_onehot
             grp['readid'] = allreads.iloc[input_indices[~is_test]]['read_id'].astype('S36')
-            grp['weights'] = clsweight
+            grp['weights'] = clsweight_train
 
             grp = h5.create_group('testing')
             grp['signals'] = input_signals[is_test]
             grp['labels'] = test_labels
             grp['onehot'] = test_onehot
             grp['readid'] = allreads.iloc[input_indices[is_test]]['read_id'].astype('S36')
+            grp['weights'] = clsweight_test
 
 
 # ex: syntax=snakemake sw=4 sts=4 et
