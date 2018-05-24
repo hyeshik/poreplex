@@ -19,5 +19,37 @@ train_data_transform:
   trim_adapter_length: 15000
   summarization_window_size: 20
   test_data_split: 0.2
-  subsample_sizes: [2000, 5000, 8000, 10000, 9999999]
+  subsample_sizes: [2000, 5000, 10000, 9999999]
   final_trim_sizes: [500, 750, 1000, 1200, 1499]
+training_parameters:
+  global:
+    ngpu: 2
+    epochs: 50
+    validation_split: 0.1
+    batchsize_train: 512
+    batchsize_eval: 64
+    batchsize_test: 64
+    optimizer: adam
+    model_checkpoint_period: 10
+  GRU_128_128:
+    - [GRU, 128]
+    - [Dropout, 0.5]
+    - [GRU, 128]
+    - [Dropout, 0.5]
+  GRU_64_192:
+    - [GRU, 64]
+    - [Dropout, 0.5]
+    - [GRU, 192]
+    - [Dropout, 0.5]
+  GRU_192_64:
+    - [GRU, 192]
+    - [Dropout, 0.5]
+    - [GRU, 64]
+    - [Dropout, 0.5]
+  GRU_triple64:
+    - [GRU, 64]
+    - [Dropout, 0.5]
+    - [GRU, 64]
+    - [Dropout, 0.5]
+    - [GRU, 64]
+    - [Dropout, 0.5]

@@ -12,7 +12,13 @@ rule all:
                 refsample=sorted(REFERNCE_TRANSCRIPTOME_SEQS)),
         expand('traindata/signals-{name}-s{size}-t{trim}.hdf5',
                 name=RUN_NAMES, size=config['train_data_transform']['subsample_sizes'],
-                trim=config['train_data_transform']['final_trim_sizes'])
+                trim=config['train_data_transform']['final_trim_sizes']),
+        expand('models/{name}-s{size}-t{trim}-l{preset}/test-predictions.txt',
+                name=RUN_NAMES, size=config['train_data_transform']['subsample_sizes'],
+                trim=config['train_data_transform']['final_trim_sizes'],
+                preset=[psetname
+                        for psetname in config['training_parameters']
+                        if psetname != 'global'])
 
 include: 'workflows/basecalling.py'
 include: 'workflows/sequence_alignments.py'
