@@ -31,7 +31,7 @@ import sys
 import os
 from concurrent import futures
 
-OUTPUT_DTYPE = np.float16
+OUTPUT_DTYPE = np.float32
 
 class TemporaryDirectory(object):
     def __init__(self, root='.'):

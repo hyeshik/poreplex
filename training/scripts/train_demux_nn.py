@@ -51,7 +51,7 @@ class CustomModelCheckpoint(Callback):
         print(time(), epoch, logs['loss'], logs['acc'],
               logs['val_loss'], logs['val_acc'], sep='\t', file=self.logfile)
         self.logfile.flush()
-        if epoch % self.period == 0 and epoch > 0:
+        if (epoch + 1) % self.period == 0:
             modelpath = self.modelpath.format(epoch=epoch)
             self.model_for_saving.save_weights(modelpath, overwrite=True)
 
@@ -75,6 +75,14 @@ def create_model(params, layerdef, input_shape, num_classes):
     with tf.device('/cpu:0'):
         model = Sequential()
 
+        lastlearninglayer = None
+        for i, defrow in enumerate(layerdef):
+            if defrow[0] != 'Dropout':
+                lastlearninglayer = i
+
+        if lastlearninglayer is None:
+            raise Exception('No learning layer is specified.')
+
         for i, defrow in enumerate(layerdef):
             celltype = eval(defrow[0])
             param1 = defrow[1]
@@ -82,6 +90,7 @@ def create_model(params, layerdef, input_shape, num_classes):
 
             if i == 0:
                 kwargs['input_shape'] = input_shape
+            if i != lastlearninglayer and defrow[0] != 'Dropout':
                 kwargs['return_sequences'] = True
 
             model.add(celltype(param1, **kwargs))

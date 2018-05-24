@@ -1,22 +1,32 @@
 rule process_scores:
-    input: expand('alignments/{{run}}-{sample}.bam', sample=REFERNCE_TRANSCRIPTOME_SEQS)
+    input:
+        alignments=expand('alignments/{{run}}-{sample}.bam',
+                          sample=REFERNCE_TRANSCRIPTOME_SEQS),
+        blacklist='refs/badtranscripts.txt'
     output: 'tables/alignment-scores-{run}.txt'
     run:
         import pandas as pd
         import subprocess as sp
         import numpy as np
 
+        blacklist = set(open(input.blacklist).read().split())
+        readids_ambig = set()
+
         def load_scores(filename):
+            nonlocal readids_ambig
+
             samplename = filename.rsplit('-', 1)[-1].rsplit('.', 1)[0]
-            with sp.Popen('samtools view -F4 {} | cut -f1,4'.format(filename), shell=True,
+            with sp.Popen('samtools view -F4 {} | cut -f1,3,5'.format(filename), shell=True,
                           stdout=sp.PIPE) as stproc:
-                tbl = pd.read_table(stproc.stdout, names=['read_id', samplename],
-                                    dtype={'read_id': str, samplename: np.int32})
-                return tbl.sort_values(by=samplename,
-                                       ascending=False).groupby('read_id').first()
+                tbl = pd.read_table(stproc.stdout, names=['read_id', 'ref', samplename],
+                                    dtype={'read_id': str, 'ref': str,
+                                           samplename: np.int32})
+                readids_ambig |= set(tbl[tbl['ref'].isin(blacklist)]['read_id'].tolist())
+                return tbl[['read_id', samplename]].sort_values(by=samplename,
+                                    ascending=False).groupby('read_id').first()
 
         scores = None
-        for inpfile in input:
+        for inpfile in input.alignments:
             print('Loading', inpfile)
             partialtbl = load_scores(inpfile)
             if scores is None:
@@ -26,6 +36,7 @@ rule process_scores:
                                   left_index=True, right_index=True)
 
         scores = scores.fillna(0).clip(0).astype(np.int32)
+        scores = scores[~scores.index.to_series().isin(readids_ambig)].copy()
         best_score = pd.Series(np.sort(scores.values)[:, -1], index=scores.index)
         second_best_score = pd.Series(np.sort(scores.values)[:, -2], index=scores.index)
         best_score_idx = scores.idxmax(axis=1)
@@ -34,7 +45,7 @@ rule process_scores:
             refinfo[0]: idxi
             for idxi, refinfo in enumerate(config['reference_transcriptomes'])}
         scores['_best_score'] = best_score
-        scores['_best_score_ratio'] = best_score / (best_score + second_best_score).clip(1)
+        scores['_best_score_diff'] = best_score - second_best_score
         scores['_best_score_idx'] = best_score_idx
         scores['_best_score_idxi'] = best_score_idx.apply(sample2index.__getitem__)
 
@@ -76,7 +87,7 @@ rule select_reads:
         selection_criteria = config['train_data_selection']
         selected = seqs[
             (seqs['_best_score'] >= selection_criteria['min_alignment_score']) &
-            (seqs['_best_score_ratio'] >= selection_criteria['min_alignment_score_ratio']) &
+            (seqs['_best_score_diff'] >= selection_criteria['min_alignment_score_diff']) &
             (seqs['adapter_length'] >= selection_criteria['min_adapter_length']) &
             (seqs['adapter_length'] <= selection_criteria['max_adapter_length']) &
             (seqs['sequence_length_template'] >= selection_criteria['min_sequence_length'])]
@@ -171,6 +182,7 @@ rule subsample_training_inputs:
 rule train_demux_nn:
     input: 'traindata/signals-{run}-s{size}-t{trim}.hdf5'
     output: 'models/{run}-s{size}-t{trim}-l{preset}/test-predictions.txt'
+    threads: 99
     run:
         import json
         import subprocess as sp
