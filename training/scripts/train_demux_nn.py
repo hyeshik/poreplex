@@ -99,7 +99,8 @@ def create_model(params, layerdef, input_shape, num_classes):
         pmodel = model
 
     model.compile(loss='categorical_crossentropy',
-                  optimizer='adam', metrics=['accuracy'])
+                  optimizer=params['optimizer'],
+                  metrics=['accuracy'])
 
     print('  - done.')
 
