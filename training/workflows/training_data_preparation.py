@@ -8,19 +8,24 @@ rule process_scores:
         import pandas as pd
         import subprocess as sp
         import numpy as np
+        import re
 
         blacklist = set(open(input.blacklist).read().split())
         readids_ambig = set()
+
+        def total_m_length(cigar, pat=re.compile(r'(\d+)M')):
+            return sum(map(int, pat.findall(cigar)), 0)
 
         def load_scores(filename):
             nonlocal readids_ambig
 
             samplename = filename.rsplit('-', 1)[-1].rsplit('.', 1)[0]
-            with sp.Popen('samtools view -F4 {} | cut -f1,3,5'.format(filename), shell=True,
+            with sp.Popen('samtools view -F4 {} | cut -f1,3,6'.format(filename), shell=True,
                           stdout=sp.PIPE) as stproc:
-                tbl = pd.read_table(stproc.stdout, names=['read_id', 'ref', samplename],
+                tbl = pd.read_table(stproc.stdout, names=['read_id', 'ref', 'cigar'],
                                     dtype={'read_id': str, 'ref': str,
                                            samplename: np.int32})
+                tbl[samplename] = tbl['cigar'].apply(total_m_length)
                 readids_ambig |= set(tbl[tbl['ref'].isin(blacklist)]['read_id'].tolist())
                 return tbl[['read_id', samplename]].sort_values(by=samplename,
                                     ascending=False).groupby('read_id').first()
@@ -45,7 +50,7 @@ rule process_scores:
             refinfo[0]: idxi
             for idxi, refinfo in enumerate(config['reference_transcriptomes'])}
         scores['_best_score'] = best_score
-        scores['_best_score_diff'] = best_score - second_best_score
+        scores['_best_score_ratio'] = best_score / (best_score + second_best_score)
         scores['_best_score_idx'] = best_score_idx
         scores['_best_score_idxi'] = best_score_idx.apply(sample2index.__getitem__)
 
@@ -87,7 +92,7 @@ rule select_reads:
         selection_criteria = config['train_data_selection']
         selected = seqs[
             (seqs['_best_score'] >= selection_criteria['min_alignment_score']) &
-            (seqs['_best_score_diff'] >= selection_criteria['min_alignment_score_diff']) &
+            (seqs['_best_score_ratio'] >= selection_criteria['min_alignment_score_ratio']) &
             (seqs['adapter_length'] >= selection_criteria['min_adapter_length']) &
             (seqs['adapter_length'] <= selection_criteria['max_adapter_length']) &
             (seqs['sequence_length_template'] >= selection_criteria['min_sequence_length'])]
