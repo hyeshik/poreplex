@@ -34,9 +34,9 @@ training_parameters:
     optimizer: adam
     model_checkpoint_period: 10
     earlystopping_min_delta: 0.001
-    earlystopping_patience: 5
+    earlystopping_patience: 10
     reducelr_min_delta: 0.01
-    reducelr_patience: 3
+    reducelr_patience: 5
     reducelr_min_lr: 0.00005
     reducelr_factor: 0.25
   GRU_128_128:
