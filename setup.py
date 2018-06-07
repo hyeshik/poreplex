@@ -58,10 +58,11 @@ setup(
         'numpy >= 1.14',
         'pandas >= 0.22.0',
         'scipy >= 1.0',
+        'progressbar2 >= 3.37.0',
     ],
     entry_points={
         'console_scripts': [
-            'octopus = octopus.demux_script:main'
+            'octopus = octopus.demux_script:__main__'
         ],
     },
 )
