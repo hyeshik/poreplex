@@ -29,6 +29,7 @@ from ont_fast5_api.analysis_tools.basecall_1d import Basecall1DTools
 import numpy as np
 import pandas as pd
 import os
+import h5py
 from scipy.signal import medfilt
 from .utils import union_intervals
 
@@ -42,16 +43,46 @@ EVENT_KMER_SIZE = 5
 
 class SignalAnalyzer:
 
-    def __init__(self, config):
+    def __init__(self, config, batchid):
         self.config = config
         self.segmodel = load_segmentation_model(config['segmentation_model'])
         self.unsplitmodel = load_segmentation_model(config['unsplit_read_detection_model'])
         self.kmermodel = pd.read_table(config['kmer_model'], header=0, index_col=0)
         self.kmersize = len(self.kmermodel.index[0])
-        self.sigdump_file = config['sigdump_file']
+        self.batchid = batchid
+        if config['dump_adapter_signals']:
+            self.adapter_dump_file, self.adapter_dump_group = (
+                self.open_adapter_dump_file(config['outputdir'], batchid))
+            self.adapter_dump_list = []
+        else:
+            self.adapter_dump_file = self.adapter_dump_group = None
 
     def process(self, filename, outputprefix):
         return SignalAnalysis(filename, outputprefix, self).process()
+
+    def open_adapter_dump_file(self, outputdir, batchid):
+        h5filename = os.path.join(outputdir, 'adapter-dumps', '{:08d}.h5'.format(batchid))
+        h5 = h5py.File(h5filename, 'w')
+        h5group = h5.create_group('adapter/{:08d}'.format(batchid))
+        return h5, h5group
+
+    def push_adapter_signal_catalog(self, read_id, adapter_start, adapter_end):
+        self.adapter_dump_list.append((read_id, adapter_start, adapter_end))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def close(self):
+        if self.adapter_dump_file is not None:
+            catgrp = self.adapter_dump_file.create_group('catalog/adapter')
+            encodedarray = np.array(self.adapter_dump_list,
+                dtype=[('readid', 'S36'), ('start', 'i8'), ('end', 'i8')])
+            catgrp.create_dataset(format(self.batchid, '08d'), shape=encodedarray.shape,
+                                  data=encodedarray)
+            self.adapter_dump_file.close()
 
 
 class SignalAnalysis:
@@ -75,6 +106,7 @@ class SignalAnalysis:
 
     def open_data_files(self, filename):
         self.fast5 = Fast5File(filename, 'r')
+        self.read_id = self.fast5.status.read_info[0].read_id
         self.sampling_rate = self.fast5.get_channel_info()['sampling_rate']
 
     def load_events(self):
@@ -276,18 +308,22 @@ class SignalAnalysis:
                     self.error_flags.add('unsplit_read')
                     break
 
+            if self.analyzer.config['dump_adapter_signals']:
+                self.dump_adapter_signal(events, segments)
+
         return {
             'filename': self.filename,
             'errors': self.error_flags,
         }
 
-    def dump_signal_segments(self, sig, statecalls):
-        outfile = self.analyzer.sigdump_file
-
-        print(0, 'START', statecalls[0][1].name, sep='\t', file=outfile)
-
-        for level, curstate, nextstate in zip(sig, statecalls, statecalls[1:]):
-            print(level, curstate[1].name, nextstate[1].name, sep='\t', file=outfile)
+    def dump_adapter_signal(self, events, segments):
+        adapter_events = events.iloc[slice(*segments['adapter'])]
+        if len(adapter_events) > 0:
+            self.analyzer.adapter_dump_group.create_dataset(self.read_id,
+                shape=(len(adapter_events),), dtype=np.float32,
+                data=adapter_events['scaled_mean'])
+            self.analyzer.push_adapter_signal_catalog(self.read_id,
+                adapter_events['start'].iloc[0], adapter_events['end'].iloc[-1])
 
 
 # Internal serialization implementation pomegranate to json does not accurately
