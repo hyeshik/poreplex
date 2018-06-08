@@ -62,7 +62,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'octopus = octopus.demux_script:__main__'
+            'octopus = octopus.pipeline:__main__'
         ],
     },
 )

@@ -323,8 +323,12 @@ def __main__():
                         help='Path to signal processing configuration.')
     parser.add_argument('--keep-unsplit', default=False, action='store_true',
                         help="Don't remove unsplit reads fused of two or more RNAs in output.")
+    parser.add_argument('--albacore', default=False, action='store_true',
+                        help='Call albacore for basecalling on-the-fly.')
     parser.add_argument('--dump-adapter-signals', default=False, action='store_true',
                         help='Dump adapter signal dumps for training')
+    parser.add_argument('--dump-basecalled-events', default=False, action='store_true',
+                        help='Dump basecalled events from albacore to the output')
     parser.add_argument('-5', '--fast5', default=False, action='store_true',
                         help='Link or copy FAST5 files to separate output directories.')
     parser.add_argument('--always-symlink-fast5', default=False, action='store_true',
