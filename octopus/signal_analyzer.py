@@ -26,6 +26,8 @@ from weakref import proxy
 from itertools import groupby
 from ont_fast5_api.fast5_file import Fast5File
 from ont_fast5_api.analysis_tools.basecall_1d import Basecall1DTools
+from pysam import BGZFile
+from collections import defaultdict
 import numpy as np
 import pandas as pd
 import os
@@ -34,11 +36,6 @@ from scipy.signal import medfilt
 from .utils import union_intervals
 
 __all__ = ['SignalAnalyzer', 'SignalAnalysis']
-
-# Index numbers in fast5 event tables
-EVENT_START_INDEX = 1
-EVENT_MOVE_INDEX = 5
-EVENT_KMER_SIZE = 5
 
 
 class SignalAnalyzer:
@@ -50,12 +47,16 @@ class SignalAnalyzer:
         self.kmermodel = pd.read_table(config['kmer_model'], header=0, index_col=0)
         self.kmersize = len(self.kmermodel.index[0])
         self.batchid = batchid
+
         if config['dump_adapter_signals']:
             self.adapter_dump_file, self.adapter_dump_group = (
                 self.open_adapter_dump_file(config['outputdir'], batchid))
             self.adapter_dump_list = []
         else:
             self.adapter_dump_file = self.adapter_dump_group = None
+
+        barcodes = {'Undetermined': None}
+        self.fastq_sequence_list = defaultdict(list)
 
     def process(self, filename, outputprefix):
         return SignalAnalysis(filename, outputprefix, self).process()
@@ -66,8 +67,20 @@ class SignalAnalyzer:
         h5group = h5.create_group('adapter/{:08d}'.format(batchid))
         return h5, h5group
 
+    def write_fastq(self):
+        for barcode, seqlist in self.fastq_sequence_list.items():
+            filepath = os.path.join(self.config['outputdir'], 'fastq', 'batches',
+                                    '{}-{:08d}.fastq.gz'.format(barcode, self.batchid))
+            with BGZFile(filepath, 'w') as writer:
+                for read_id, sequence, quality in seqlist:
+                    formatted_entry = '@{}\n{}\n+\n{}\n'.format(read_id, sequence, quality)
+                    writer.write(formatted_entry.encode('ascii'))
+
     def push_adapter_signal_catalog(self, read_id, adapter_start, adapter_end):
         self.adapter_dump_list.append((read_id, adapter_start, adapter_end))
+
+    def push_fastq_entry(self, barcode, read_id, sequence, quality):
+        self.fastq_sequence_list[barcode].append((read_id, sequence, quality))
 
     def __enter__(self):
         return self
@@ -83,6 +96,8 @@ class SignalAnalyzer:
             catgrp.create_dataset(format(self.batchid, '08d'), shape=encodedarray.shape,
                                   data=encodedarray)
             self.adapter_dump_file.close()
+
+        self.write_fastq()
 
 
 class SignalAnalysis:
@@ -117,22 +132,24 @@ class SignalAnalysis:
             events = bcall.get_event_data('template')
             if events is None:
                 self.error_flags.add('not_basecalled')
-                return
+                return (None, None)
 
             events = pd.DataFrame(events)
             events['pos'] = np.cumsum(events['move'])
 
+            sequence = bcall.get_called_sequence('template')
+
         # Rescale the signal to fit in the kmer models
         scaling_params = self.compute_scaling_parameters(events)
         if scaling_params is None:
-            return
+            return (None, None)
 
         duration = np.hstack((np.diff(events['start']), [1])).astype(np.uint64)
         events['end'] = events['start'] + duration
 
         events['scaled_mean'] = np.poly1d(scaling_params)(events['mean'])
 
-        return events
+        return events, sequence
 
     def compute_scaling_parameters(self, events):
         # Get median value for each kmer state and match with the ONT kmer model.
@@ -291,7 +308,7 @@ class SignalAnalysis:
 
     def process(self):
         for _ in (0,):
-            events = self.load_events()
+            events, sequence = self.load_events()
             if events is None:
                 break
 
@@ -307,6 +324,9 @@ class SignalAnalysis:
                 if isunsplit_read:
                     self.error_flags.add('unsplit_read')
                     break
+
+            barcode = 'Undetermined'
+            self.analyzer.push_fastq_entry(barcode, self.read_id, sequence[1], sequence[2])
 
             if self.analyzer.config['dump_adapter_signals']:
                 self.dump_adapter_signal(events, segments)

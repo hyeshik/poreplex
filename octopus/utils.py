@@ -21,6 +21,10 @@
 # THE SOFTWARE.
 #
 
+__all__ = ['union_intervals', 'errx', 'errprint']
+
+import sys
+
 def union_intervals(iset):
     merged = []
 
@@ -33,3 +37,11 @@ def union_intervals(iset):
         merged.append([begin, end])
 
     return merged
+
+def errx(msg):
+    errprint(msg)
+    sys.exit(254)
+
+def errprint(msg):
+    print(msg, file=sys.stderr)
+
