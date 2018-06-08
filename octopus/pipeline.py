@@ -27,6 +27,7 @@ import os
 from progressbar import ProgressBar, NullBar, UnknownLength
 from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
+from pysam import BGZFile
 from .signal_analyzer import SignalAnalyzer
 from .utils import *
 
@@ -77,7 +78,33 @@ def process_batch(batchid, reads, config):
 #                batchid, usages[0], usages[1], usages[2], usages[4]))
 #    show_memory_usage()
 
-    return len(reads)
+        return len(reads), analyzer.sequences
+
+
+class FASTQWriter:
+
+    def __init__(self, outputdir, barcodes):
+        self.outputdir = outputdir
+        self.barcodes = barcodes
+
+        self.open_streams()
+
+    def open_streams(self):
+        self.streams = {
+            barcode: BGZFile(self.get_output_path(barcode), 'w')
+            for barcode in self.barcodes}
+
+    def close(self):
+        for stream in self.streams.values():
+            stream.close()
+
+    def get_output_path(self, name):
+        return os.path.join(self.outputdir, 'fastq', name + '.fastq.gz')
+
+    def write_sequences(self, seqpacks):
+        for barcode, entries in seqpacks.items():
+            formatted = ''.join('@{}\n{}\n+\n{}\n'.format(*fields) for fields in entries)
+            self.streams[barcode].write(formatted.encode('ascii'))
 
 
 class ProcessingSession:
@@ -96,9 +123,13 @@ class ProcessingSession:
         self.executor_compute = ProcessPoolExecutor(args.parallel)
         self.executor_io = ThreadPoolExecutor(2)
 
-        self.loop = None
+        self.loop = self.fastq_writer = None
+
+        self.barcodes = ['Undetermined'] # XXX: change this
 
     def __enter__(self):
+        self.fastq_writer = FASTQWriter(self.args.output, self.barcodes)
+
         self.loop = asyncio.get_event_loop()
         self.executor_compute.__enter__()
         self.executor_io.__enter__()
@@ -112,6 +143,8 @@ class ProcessingSession:
         self.executor_io.__exit__(*args)
         self.executor_compute.__exit__(*args)
         self.loop.close()
+
+        self.fastq_writer.close()
 
     def errx(self, message):
         if self.running:
@@ -135,13 +168,18 @@ class ProcessingSession:
 
     async def run_process_batch(self, batchid, files):
         try:
-            nprocessed = await self.run_in_executor_compute(
+            nprocessed, seqs = await self.run_in_executor_compute(
                 process_batch, batchid, files, self.config)
         except CancelledError:
             return
 
         self.reads_processed += nprocessed
         self.reads_queued -= nprocessed
+
+        try:
+            await self.run_in_executor_io(self.fastq_writer.write_sequences, seqs)
+        except CancelledError:
+            return
 
     def queue_processing(self, filepath):
         self.jobstack.append(filepath)

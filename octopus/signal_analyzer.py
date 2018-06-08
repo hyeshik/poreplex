@@ -26,8 +26,6 @@ from weakref import proxy
 from itertools import groupby
 from ont_fast5_api.fast5_file import Fast5File
 from ont_fast5_api.analysis_tools.basecall_1d import Basecall1DTools
-from pysam import BGZFile
-from collections import defaultdict
 import numpy as np
 import pandas as pd
 import os
@@ -55,8 +53,8 @@ class SignalAnalyzer:
         else:
             self.adapter_dump_file = self.adapter_dump_group = None
 
-        barcodes = {'Undetermined': None}
-        self.fastq_sequence_list = defaultdict(list)
+        barcodes = {'Undetermined': None} # XXX: change this
+        self.sequences = {bc: [] for bc in barcodes}
 
     def process(self, filename, outputprefix):
         return SignalAnalysis(filename, outputprefix, self).process()
@@ -67,20 +65,11 @@ class SignalAnalyzer:
         h5group = h5.create_group('adapter/{:08d}'.format(batchid))
         return h5, h5group
 
-    def write_fastq(self):
-        for barcode, seqlist in self.fastq_sequence_list.items():
-            filepath = os.path.join(self.config['outputdir'], 'fastq', 'batches',
-                                    '{}-{:08d}.fastq.gz'.format(barcode, self.batchid))
-            with BGZFile(filepath, 'w') as writer:
-                for read_id, sequence, quality in seqlist:
-                    formatted_entry = '@{}\n{}\n+\n{}\n'.format(read_id, sequence, quality)
-                    writer.write(formatted_entry.encode('ascii'))
-
     def push_adapter_signal_catalog(self, read_id, adapter_start, adapter_end):
         self.adapter_dump_list.append((read_id, adapter_start, adapter_end))
 
     def push_fastq_entry(self, barcode, read_id, sequence, quality):
-        self.fastq_sequence_list[barcode].append((read_id, sequence, quality))
+        self.sequences[barcode].append((read_id, sequence, quality))
 
     def __enter__(self):
         return self
@@ -93,11 +82,13 @@ class SignalAnalyzer:
             catgrp = self.adapter_dump_file.create_group('catalog/adapter')
             encodedarray = np.array(self.adapter_dump_list,
                 dtype=[('readid', 'S36'), ('start', 'i8'), ('end', 'i8')])
-            catgrp.create_dataset(format(self.batchid, '08d'), shape=encodedarray.shape,
-                                  data=encodedarray)
+            try:
+                catgrp.create_dataset(format(self.batchid, '08d'), shape=encodedarray.shape,
+                                      data=encodedarray)
+            except:
+                import traceback
+                traceback.print_exc() # XXX: check duplicated reads
             self.adapter_dump_file.close()
-
-        self.write_fastq()
 
 
 class SignalAnalysis:
@@ -339,11 +330,15 @@ class SignalAnalysis:
     def dump_adapter_signal(self, events, segments):
         adapter_events = events.iloc[slice(*segments['adapter'])]
         if len(adapter_events) > 0:
+          try:
             self.analyzer.adapter_dump_group.create_dataset(self.read_id,
                 shape=(len(adapter_events),), dtype=np.float32,
                 data=adapter_events['scaled_mean'])
             self.analyzer.push_adapter_signal_catalog(self.read_id,
                 adapter_events['start'].iloc[0], adapter_events['end'].iloc[-1])
+          except:
+              import traceback
+              traceback.print_exc() # XXX: check duplicated reads
 
 
 # Internal serialization implementation pomegranate to json does not accurately
