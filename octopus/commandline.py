@@ -23,7 +23,9 @@
 import argparse
 import sys
 import os
+import time
 import yaml
+import shutil
 from functools import partial
 from . import *
 from .pipeline import ProcessingSession
@@ -57,6 +59,25 @@ def load_config(args):
 
 
 def create_output_directories(outputdir, config):
+    existing = os.listdir(outputdir)
+    if existing:
+        while config['interactive']:
+            answer = input('Output directory {} is not empty. Clear it? (y/N) '
+                            .format(outputdir))
+            answer = answer.lower()[:1]
+            if answer in ('', 'n'):
+                sys.exit(1)
+            elif answer == 'y':
+                print()
+                break
+
+        for ent in existing:
+            fpath = os.path.join(outputdir, ent)
+            if os.path.isdir(fpath):
+                shutil.rmtree(fpath)
+            else:
+                os.unlink(fpath)
+
     subdirs = ['fastq', 'tmp']
 
     if config['fast5_output']:
@@ -85,26 +106,26 @@ def setup_output_name_mapping(config):
 
     return names
 
-def show_configuration(config, args):
-    tprint = partial(print, sep='\t')
+def show_configuration(config, args, file):
+    _ = partial(print, sep='\t', file=file)
     bool2yn = lambda b: 'Yes' if b else 'No'
 
-    tprint("==== Analysis settings ====")
-    tprint(" * Input:", config['inputdir'])
-    tprint(" * Output:", config['outputdir'])
-    tprint(" * Processes:", args.parallel)
-    tprint(" * Presets:", config['preset_name'])
-    tprint(" * Trim 3' adapter:\t", bool2yn(config['trim_adapter']))
-    tprint(" * Filter concatenated read:", bool2yn(config['filter_unsplit_reads']))
-    tprint(" * Separate by barcode:\t", bool2yn(config['barcoding']))
-    tprint(" * Fast5 in output:\t", bool2yn(config['fast5_output']),
+    _("==== Analysis settings ====")
+    _(" * Input:", config['inputdir'])
+    _(" * Output:", config['outputdir'])
+    _(" * Processes:", args.parallel)
+    _(" * Presets:", config['preset_name'])
+    _(" * Trim 3' adapter:\t", bool2yn(config['trim_adapter']))
+    _(" * Filter concatenated read:", bool2yn(config['filter_unsplit_reads']))
+    _(" * Separate by barcode:\t", bool2yn(config['barcoding']))
+    _(" * Fast5 in output:\t", bool2yn(config['fast5_output']),
            '(Symlink)' if config['fast5_always_symlink'] else '')
-    tprint(" * Basecall table in output:", bool2yn(config['dump_basecalls']))
+    _(" * Basecall table in output:", bool2yn(config['dump_basecalls']))
 
     if config['dump_adapter_signals']:
-        tprint(" * Dump adapter signals for training:", "Yes")
+        _(" * Dump adapter signals for training:", "Yes")
 
-    tprint("===========================\n")
+    _("===========================\n")
 
 def main(args):
     if not args.quiet:
@@ -121,6 +142,7 @@ def main(args):
 
     config = load_config(args)
     config['quiet'] = args.quiet
+    config['interactive'] = not args.yes
     config['inputdir'] = args.input
     config['outputdir'] = args.output
     config['barcoding'] = args.barcoding
@@ -135,8 +157,15 @@ def main(args):
 
     create_output_directories(args.output, config)
 
+    with open(os.path.join(args.output, 'octopus.log'), 'w') as cfgf:
+        print("Octopus {}".format(__version__), file=cfgf)
+        print("\nStarted at", time.asctime(), file=cfgf)
+        print("\nCommand line:", ' '.join(sys.argv) + '\n', file=cfgf)
+
+        show_configuration(config, args, file=cfgf)
+
     if not config['quiet']:
-        show_configuration(config, args)
+        show_configuration(config, args, sys.stdout)
 
     ProcessingSession.run(config, args)
 
@@ -175,6 +204,8 @@ def __main__():
                              'even when hard linking is possible.')
     parser.add_argument('-q', '--quiet', default=False, action='store_true',
                         help='Suppress non-error messages.')
+    parser.add_argument('-y', '--yes', default=False, action='store_true',
+                        help='Suppress all questions.')
 
     args = parser.parse_args(sys.argv[1:])
     main(args)

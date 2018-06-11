@@ -125,7 +125,7 @@ class SignalAnalysis:
             'filename': filename,
             'read_id': read.read_id,
             'channel': channel_info['channel_number'],
-            'start_time': read.start_time,
+            'start_time': read.start_time / self.sampling_rate,
             'run_id': tracking_id['run_id'],
             'sample_id': tracking_id['sample_id'],
             'duration': read.duration,
@@ -142,6 +142,11 @@ class SignalAnalysis:
             events = bcall.get_event_data('template')
             if events is None:
                 raise PipelineHandledError('not_basecalled')
+
+            bcall_summary = self.fast5.get_summary_data(bcall.group_name)['basecall_1d_template']
+            self.readinfo['sequence_length'] = bcall_summary['sequence_length']
+            self.readinfo['mean_qscore'] = bcall_summary['mean_qscore']
+            self.readinfo['num_events'] = bcall_summary['num_events']
 
             events = pd.DataFrame(events)
             events['pos'] = np.cumsum(events['move'])
