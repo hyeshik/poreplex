@@ -106,6 +106,7 @@ def main(args):
     config['dump_adapter_signals'] = args.dump_adapter_signals
     config['fast5_output'] = args.fast5
     config['fast5_always_symlink'] = args.always_symlink_fast5
+    config['trim_adapter'] = args.trim_adapter
     config['output_names'] = setup_output_name_mapping(config)
 
     create_output_directories(args.output, config)

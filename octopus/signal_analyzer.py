@@ -268,6 +268,21 @@ class SignalAnalysis:
 
         return False
 
+    def trim_adapter(self, events, segments):
+        if self.sequence is None:
+            return
+
+        adapter_end = segments['adapter'][1]
+        kmer_lead_size = self.analyzer.kmersize // 2
+        adapter_basecall_length = events.iloc[adapter_end]['pos'] + kmer_lead_size
+
+        if adapter_basecall_length > len(self.sequence[0]):
+            raise PipelineHandledError('basecall_table_incomplete')
+        elif adapter_basecall_length > 0:
+            self.sequence = (
+                self.sequence[0][:-adapter_basecall_length],
+                self.sequence[1][:-adapter_basecall_length])
+
     def process(self):
         error_set = None
 
@@ -278,13 +293,16 @@ class SignalAnalysis:
             if 'adapter' not in segments:
                 raise PipelineHandledError('adapter_not_detected')
 
+            if self.analyzer.config['trim_adapter']:
+                self.trim_adapter(events, segments)
+
             if self.analyzer.config['filter_unsplit_reads']:
                 isunsplit_read = self.detect_unsplit_read(events, segments)
                 if isunsplit_read:
                     raise PipelineHandledError('unsplit_read')
 
             if self.analyzer.config['barcoding']:
-                raise UnimplementedError
+                raise NotImplementedError
             else:
                 outname = 'pass'
 
