@@ -24,6 +24,7 @@ import argparse
 import sys
 import os
 import yaml
+from functools import partial
 from . import *
 from .pipeline import ProcessingSession
 from .utils import *
@@ -84,6 +85,27 @@ def setup_output_name_mapping(config):
 
     return names
 
+def show_configuration(config, args):
+    tprint = partial(print, sep='\t')
+    bool2yn = lambda b: 'Yes' if b else 'No'
+
+    tprint("==== Analysis settings ====")
+    tprint(" * Input:", config['inputdir'])
+    tprint(" * Output:", config['outputdir'])
+    tprint(" * Processes:", args.parallel)
+    tprint(" * Presets:", config['preset_name'])
+    tprint(" * Trim 3' adapter:\t", bool2yn(config['trim_adapter']))
+    tprint(" * Filter concatenated read:", bool2yn(config['filter_unsplit_reads']))
+    tprint(" * Separate by barcode:\t", bool2yn(config['barcoding']))
+    tprint(" * Fast5 in output:\t", bool2yn(config['fast5_output']),
+           '(Symlink)' if config['fast5_always_symlink'] else '')
+    tprint(" * Basecall table in output:", bool2yn(config['dump_basecalls']))
+
+    if config['dump_adapter_signals']:
+        tprint(" * Dump adapter signals for training:", "Yes")
+
+    tprint("===========================\n")
+
 def main(args):
     if not args.quiet:
         show_banner()
@@ -99,17 +121,22 @@ def main(args):
 
     config = load_config(args)
     config['quiet'] = args.quiet
+    config['inputdir'] = args.input
     config['outputdir'] = args.output
     config['barcoding'] = args.barcoding
     config['filter_unsplit_reads'] = not args.keep_unsplit
     config['batch_chunk_size'] = args.batch_chunk
     config['dump_adapter_signals'] = args.dump_adapter_signals
+    config['dump_basecalls'] = args.dump_basecalled_events
     config['fast5_output'] = args.fast5
     config['fast5_always_symlink'] = args.always_symlink_fast5
     config['trim_adapter'] = args.trim_adapter
     config['output_names'] = setup_output_name_mapping(config)
 
     create_output_directories(args.output, config)
+
+    if not config['quiet']:
+        show_configuration(config, args)
 
     ProcessingSession.run(config, args)
 

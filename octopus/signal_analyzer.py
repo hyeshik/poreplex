@@ -48,17 +48,19 @@ class SignalAnalyzer:
         self.unsplitmodel = load_segmentation_model(config['unsplit_read_detection_model'])
         self.kmermodel = pd.read_table(config['kmer_model'], header=0, index_col=0)
         self.kmersize = len(self.kmermodel.index[0])
+        self.inputdir = config['inputdir']
+        self.outputdir = config['outputdir']
         self.batchid = batchid
 
         if config['dump_adapter_signals']:
             self.adapter_dump_file, self.adapter_dump_group = (
-                self.open_adapter_dump_file(config['outputdir'], batchid))
+                self.open_adapter_dump_file(outputdir, batchid))
             self.adapter_dump_list = []
         else:
             self.adapter_dump_file = self.adapter_dump_group = None
 
     def process(self, filename, outputprefix):
-        return SignalAnalysis(filename, outputprefix, self).process()
+        return SignalAnalysis(filename, self).process()
 
     def open_adapter_dump_file(self, outputdir, batchid):
         h5filename = os.path.join(outputdir, 'adapter-dumps', '{:08d}.h5'.format(batchid))
@@ -91,9 +93,8 @@ class SignalAnalyzer:
 
 class SignalAnalysis:
 
-    def __init__(self, filename, outputprefix, analyzer):
+    def __init__(self, filename, analyzer):
         self.filename = filename
-        self.outputprefix = outputprefix
         self.config = analyzer.config['head_signal_processing']
         self.analyzer = proxy(analyzer)
         self.fast5 = None
@@ -109,9 +110,29 @@ class SignalAnalysis:
         return False
 
     def open_data_files(self, filename):
-        self.fast5 = Fast5File(filename, 'r')
-        self.read_id = self.fast5.status.read_info[0].read_id
-        self.sampling_rate = self.fast5.get_channel_info()['sampling_rate']
+        fast5path = os.path.join(self.analyzer.config['inputdir'], filename)
+        self.fast5 = Fast5File(fast5path, 'r')
+        if len(self.fast5.status.read_info) != 1:
+            raise ValueError('Zero or 2+ reads found in a FAST5 file.')
+
+        read = self.fast5.status.read_info[0]
+        channel_info = self.fast5.get_channel_info()
+        tracking_id = self.fast5.get_tracking_id()
+
+        self.sampling_rate = channel_info['sampling_rate']
+
+        self.readinfo = {
+            'filename': filename,
+            'read_id': read.read_id,
+            'channel': channel_info['channel_number'],
+            'start_time': read.start_time,
+            'run_id': tracking_id['run_id'],
+            'sample_id': tracking_id['sample_id'],
+            'duration': read.duration,
+            'num_events': read.event_data_count,
+            'sequence_length': 0,
+            'mean_qscore': 0.,
+        }
 
     def load_events(self):
         assert self.fast5 is not None
@@ -284,7 +305,7 @@ class SignalAnalysis:
                 self.sequence[1][:-adapter_basecall_length])
 
     def process(self):
-        error_set = None
+        error_set = 'no_error'
 
         try:
             events = self.load_events()
@@ -313,13 +334,13 @@ class SignalAnalysis:
             if self.analyzer.config['dump_adapter_signals']:
                 self.dump_adapter_signal(events, segments)
 
-        return {
-            'read_id': self.read_id,
-            'filename': self.filename,
-            'errors': error_set,
-            'output_label': outname,
+        self.readinfo.update({
+            'error': error_set,
+            'label': outname,
             'fastq': self.sequence,
-        }
+        })
+        return self.readinfo
+        #sequence_length, mean_qscore, <- from basecalls
 
     def dump_adapter_signal(self, events, segments):
         adapter_events = events.iloc[slice(*segments['adapter'])]

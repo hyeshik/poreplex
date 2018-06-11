@@ -28,7 +28,7 @@ from progressbar import ProgressBar, NullBar, UnknownLength
 from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
 from . import *
-from .io import FASTQWriter
+from .io import FASTQWriter, SequencingSummaryWriter
 from .signal_analyzer import SignalAnalyzer
 from .utils import *
 
@@ -56,7 +56,7 @@ def scan_dir_recursive_worker(dirname, suffix='.fast5'):
         elif entryname.lower().endswith(suffix):
             files.append(entryname)
 
-    return dirname, dirs, files
+    return dirs, files
 
 
 def show_memory_usage():
@@ -71,8 +71,7 @@ def process_file(inputfile, outputprefix, analyzer):
 def process_batch(batchid, reads, config):
     try:
         with SignalAnalyzer(config, batchid) as analyzer:
-            return [process_file(f5file, 'x', analyzer)
-                    for f5file in reads]
+            return [process_file(f5file, 'x', analyzer) for f5file in reads]
     except Exception as exc:
         import traceback
         traceback.print_exc()
@@ -101,6 +100,7 @@ class ProcessingSession:
     def __enter__(self):
         self.fastq_writer = FASTQWriter(self.config['outputdir'],
                                         self.config['output_names'])
+        self.seqsummary_writer = SequencingSummaryWriter(self.config['outputdir'])
 
         self.loop = asyncio.get_event_loop()
         self.executor_compute.__enter__()
@@ -116,6 +116,7 @@ class ProcessingSession:
         self.executor_compute.__exit__(*args)
         self.loop.close()
 
+        self.seqsummary_writer.close()
         self.fastq_writer.close()
 
     def errx(self, message):
@@ -159,6 +160,11 @@ class ProcessingSession:
         except CancelledError:
             return
 
+        try:
+            await self.run_in_executor_io(self.seqsummary_writer.write_results, results)
+        except CancelledError:
+            return
+
     def queue_processing(self, filepath):
         self.jobstack.append(filepath)
         self.reads_queued += 1
@@ -174,16 +180,18 @@ class ProcessingSession:
             self.loop.create_task(work)
             del self.jobstack[:]
 
-    async def scan_dir_recursive(self, dirname, top=False):
+    async def scan_dir_recursive(self, topdir, dirname=''):
         if not self.running:
             return
 
+        is_topdir = (dirname == '')
+
         try:
             errormsg = None
-            path, dirs, files = await self.run_in_executor_io(
-                scan_dir_recursive_worker, dirname)
+            dirs, files = await self.run_in_executor_io(
+                scan_dir_recursive_worker, os.path.join(topdir, dirname))
         except CancelledError as exc:
-            if top: return
+            if is_topdir: return
             else: raise exc
         except Exception as exc:
             errormsg = str(exc)
@@ -192,18 +200,18 @@ class ProcessingSession:
             return self.errx('ERROR: ' + str(errormsg))
 
         for filename in files:
-            fullpath = os.path.join(path, filename)
-            self.queue_processing(fullpath)
+            filepath = os.path.join(dirname, filename)
+            self.queue_processing(filepath)
 
         try:
             for subdir in dirs:
-                subdirpath = os.path.join(path, subdir)
-                await self.scan_dir_recursive(subdirpath)
+                subdirpath = os.path.join(dirname, subdir)
+                await self.scan_dir_recursive(topdir, subdirpath)
         except CancelledError as exc:
-            if top: return
+            if is_topdir: return
             else: raise exc
 
-        if top:
+        if is_topdir:
             self.flush_jobstack()
             self.scan_finished = True
 
@@ -236,7 +244,7 @@ class ProcessingSession:
         with kls(config, args) as sess:
             monitor_task = sess.loop.create_task(sess.monitor_progresses())
 
-            scanjob = sess.scan_dir_recursive(args.input, top=True)
+            scanjob = sess.scan_dir_recursive(config['inputdir'])
             sess.loop.create_task(scanjob)
 
             try:
@@ -262,4 +270,3 @@ class ProcessingSession:
                 if sess.pbar is not None:
                     sess.pbar.finish()
                 print('\n\nFinished.')
-

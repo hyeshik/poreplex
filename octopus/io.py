@@ -48,4 +48,25 @@ class FASTQWriter:
         for entry in procresult:
             if entry['fastq'] is not None:
                 formatted = ''.join('@{}\n{}\n+\n{}\n'.format(entry['read_id'], *entry['fastq']))
-                self.streams[entry['output_label']].write(formatted.encode('ascii'))
+                self.streams[entry['label']].write(formatted.encode('ascii'))
+
+
+class SequencingSummaryWriter:
+
+    SUMMARY_OUTPUT_FIELDS = [
+        'filename', 'read_id', 'run_id', 'channel', 'start_time',
+        'duration', 'num_events', 'sequence_length', 'mean_qscore',
+        'sample_id', 'error', 'label',
+    ]
+
+    def __init__(self, outputdir):
+        self.file = open(os.path.join(outputdir, 'sequencing_summary.txt'), 'w')
+        print(*self.SUMMARY_OUTPUT_FIELDS, sep='\t', file=self.file)
+
+    def close(self):
+        self.file.close()
+
+    def write_results(self, results):
+        for entry in results:
+            print(*[entry[f] for f in self.SUMMARY_OUTPUT_FIELDS],
+                  file=self.file, sep='\t')
