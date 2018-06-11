@@ -24,7 +24,7 @@ import argparse
 import sys
 import os
 import yaml
-from . import __version__
+from . import *
 from .pipeline import ProcessingSession
 from .utils import *
 
@@ -69,6 +69,20 @@ def create_output_directories(outputdir, config):
         if not os.path.isdir(fullpath):
             os.makedirs(fullpath)
 
+def setup_output_name_mapping(config):
+    names = {'fail': OUTPUT_NAME_FAILED}
+
+    if config['barcoding']:
+        num_barcodes = config['demultiplexing']['number_of_barcodes']
+        for i in range(self.num_barcodes):
+            names[i] = OUTPUT_NAME_BARCODES.format(i + 1)
+    else:
+        names['pass'] = OUTPUT_NAME_PASSED
+
+    if config['filter_unsplit_reads']:
+        names['artifact'] = OUTPUT_NAME_ARTIFACT
+
+    return names
 
 def main(args):
     if not args.quiet:
@@ -86,11 +100,13 @@ def main(args):
     config = load_config(args)
     config['quiet'] = args.quiet
     config['outputdir'] = args.output
+    config['barcoding'] = args.barcoding
     config['filter_unsplit_reads'] = not args.keep_unsplit
     config['batch_chunk_size'] = args.batch_chunk
     config['dump_adapter_signals'] = args.dump_adapter_signals
     config['fast5_output'] = args.fast5
     config['fast5_always_symlink'] = args.always_symlink_fast5
+    config['output_names'] = setup_output_name_mapping(config)
 
     create_output_directories(args.output, config)
 

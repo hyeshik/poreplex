@@ -20,16 +20,32 @@
 # THE SOFTWARE.
 #
 
-__all__ = [
-    '__version__',
-    'OUTPUT_NAME_PASSED', 'OUTPUT_NAME_FAILED',
-    'OUTPUT_NAME_ARTIFACT', 'OUTPUT_NAME_BARCODES',
-]
+from pysam import BGZFile
+import os
 
-__version__ = '0.1'
 
-OUTPUT_NAME_PASSED = 'pass'
-OUTPUT_NAME_FAILED = 'fail'
-OUTPUT_NAME_ARTIFACT = 'artifact'
-OUTPUT_NAME_BARCODES = 'BC{n}'
+class FASTQWriter:
 
+    def __init__(self, outputdir, names):
+        self.outputdir = outputdir
+        self.names = names
+
+        self.open_streams()
+
+    def open_streams(self):
+        self.streams = {
+            int_name: BGZFile(self.get_output_path(name), 'w')
+            for int_name, name in self.names.items()}
+
+    def close(self):
+        for stream in self.streams.values():
+            stream.close()
+
+    def get_output_path(self, name):
+        return os.path.join(self.outputdir, 'fastq', name + '.fastq.gz')
+
+    def write_sequences(self, procresult):
+        for entry in procresult:
+            if entry['fastq'] is not None:
+                formatted = ''.join('@{}\n{}\n+\n{}\n'.format(entry['read_id'], *entry['fastq']))
+                self.streams[entry['output_label']].write(formatted.encode('ascii'))

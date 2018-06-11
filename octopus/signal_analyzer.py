@@ -36,6 +36,10 @@ from .utils import union_intervals
 __all__ = ['SignalAnalyzer', 'SignalAnalysis']
 
 
+class PipelineHandledError(Exception):
+    pass
+
+
 class SignalAnalyzer:
 
     def __init__(self, config, batchid):
@@ -53,9 +57,6 @@ class SignalAnalyzer:
         else:
             self.adapter_dump_file = self.adapter_dump_group = None
 
-        barcodes = {'Undetermined': None} # XXX: change this
-        self.sequences = {bc: [] for bc in barcodes}
-
     def process(self, filename, outputprefix):
         return SignalAnalysis(filename, outputprefix, self).process()
 
@@ -67,9 +68,6 @@ class SignalAnalyzer:
 
     def push_adapter_signal_catalog(self, read_id, adapter_start, adapter_end):
         self.adapter_dump_list.append((read_id, adapter_start, adapter_end))
-
-    def push_fastq_entry(self, barcode, read_id, sequence, quality):
-        self.sequences[barcode].append((read_id, sequence, quality))
 
     def __enter__(self):
         return self
@@ -98,8 +96,8 @@ class SignalAnalysis:
         self.outputprefix = outputprefix
         self.config = analyzer.config['head_signal_processing']
         self.analyzer = proxy(analyzer)
-        self.error_flags = set()
         self.fast5 = None
+        self.sequence = None
         self.open_data_files(filename)
 
     def __enter__(self):
@@ -122,25 +120,22 @@ class SignalAnalysis:
         with Basecall1DTools(self.fast5) as bcall:
             events = bcall.get_event_data('template')
             if events is None:
-                self.error_flags.add('not_basecalled')
-                return (None, None)
+                raise PipelineHandledError('not_basecalled')
 
             events = pd.DataFrame(events)
             events['pos'] = np.cumsum(events['move'])
 
-            sequence = bcall.get_called_sequence('template')
+            self.sequence = bcall.get_called_sequence('template')[1:]
 
         # Rescale the signal to fit in the kmer models
         scaling_params = self.compute_scaling_parameters(events)
-        if scaling_params is None:
-            return (None, None)
 
         duration = np.hstack((np.diff(events['start']), [1])).astype(np.uint64)
         events['end'] = events['start'] + duration
 
         events['scaled_mean'] = np.poly1d(scaling_params)(events['mean'])
 
-        return events, sequence
+        return events
 
     def compute_scaling_parameters(self, events):
         # Get median value for each kmer state and match with the ONT kmer model.
@@ -148,8 +143,7 @@ class SignalAnalysis:
                                            group_keys=False, as_index=False).agg(
                                            {'mean': 'median', 'model_state': 'first'})
         if len(events_summarized) < self.config['minimum_kmer_states']:
-            self.error_flags.add('too_few_kmer_states')
-            return
+            raise PipelineHandledError('too_few_kmer_states')
 
         ev_with_mod = pd.merge(events_summarized, self.analyzer.kmermodel,
                                how='left', left_on='model_state', right_index=True)
@@ -274,57 +268,39 @@ class SignalAnalysis:
 
         return False
 
-#        barcode_start, barcode_end = sigparts['adapter']
-#
-#        if not self.error_flags:
-#            outdir = os.path.dirname(self.outputprefix)
-#            if not os.path.isdir(outdir):
-#                try:
-#                    os.makedirs(outdir)
-#                except OSError:
-#                    pass
-#
-#            with open(self.outputprefix + '.npy', 'wb') as eventsout:
-#                adapter_raw_start = headevents.iloc[barcode_start]['start']
-#                adapter_raw_end = headevents.iloc[barcode_end]['end']
-#                #adapter_signal = self.load_raw_signal(scaler, adapter_raw_start, adapter_raw_end)
-#                #np.save(eventsout, adapter_signal)
-#
-#            if self.analyzer.sigdump_file is not None:
-#                self.dump_signal_segments(sig, statecalls[1:])
-#
-#        else:
-#            print('ERROR', self.filename, '/'.join(self.error_flags), duration,
-#                  remaining_time, file=self.analyzer.debug_output, sep='\t')
-
     def process(self):
-        for _ in (0,):
-            events, sequence = self.load_events()
-            if events is None:
-                break
+        error_set = None
+
+        try:
+            events = self.load_events()
 
             segments = self.detect_segments(events)
-            if segments is None:
-                break
             if 'adapter' not in segments:
-                self.error_flags.add('adapter_not_detected')
-                break
+                raise PipelineHandledError('adapter_not_detected')
 
             if self.analyzer.config['filter_unsplit_reads']:
                 isunsplit_read = self.detect_unsplit_read(events, segments)
                 if isunsplit_read:
-                    self.error_flags.add('unsplit_read')
-                    break
+                    raise PipelineHandledError('unsplit_read')
 
-            barcode = 'Undetermined'
-            self.analyzer.push_fastq_entry(barcode, self.read_id, sequence[1], sequence[2])
+            if self.analyzer.config['barcoding']:
+                raise UnimplementedError
+            else:
+                outname = 'pass'
 
+        except PipelineHandledError as exc:
+            outname = 'artifact' if exc.args[0] in ('unsplit_read',) else 'fail'
+            error_set = exc.args[0]
+        else:
             if self.analyzer.config['dump_adapter_signals']:
                 self.dump_adapter_signal(events, segments)
 
         return {
+            'read_id': self.read_id,
             'filename': self.filename,
-            'errors': self.error_flags,
+            'errors': error_set,
+            'output_label': outname,
+            'fastq': self.sequence,
         }
 
     def dump_adapter_signal(self, events, segments):

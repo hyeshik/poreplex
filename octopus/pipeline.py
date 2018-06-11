@@ -27,7 +27,8 @@ import os
 from progressbar import ProgressBar, NullBar, UnknownLength
 from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
-from pysam import BGZFile
+from . import *
+from .io import FASTQWriter
 from .signal_analyzer import SignalAnalyzer
 from .utils import *
 
@@ -58,53 +59,24 @@ def scan_dir_recursive_worker(dirname, suffix='.fast5'):
     return dirname, dirs, files
 
 
+def show_memory_usage():
+    usages = open('/proc/self/statm').read().split()
+    print('{:05d} MEMORY total={} RSS={} shared={} data={}'.format(
+            batchid, usages[0], usages[1], usages[2], usages[4]))
+
 def process_file(inputfile, outputprefix, analyzer):
     result = analyzer.process(inputfile, outputprefix)
     return result
 
-
 def process_batch(batchid, reads, config):
-    with SignalAnalyzer(config, batchid) as analyzer:
-        for f5file in reads:
-            # =-= XXX temporary
-            #if os.path.exists(outputprefix + '.npy'):
-            #    continue
-            # XXX
-            process_file(f5file, 'x', analyzer)
-
-#    def show_memory_usage():
-#        usages = open('/proc/self/statm').read().split()
-#        print('{:05d} MEMORY total={} RSS={} shared={} data={}'.format(
-#                batchid, usages[0], usages[1], usages[2], usages[4]))
-#    show_memory_usage()
-
-        return len(reads), analyzer.sequences
-
-
-class FASTQWriter:
-
-    def __init__(self, outputdir, barcodes):
-        self.outputdir = outputdir
-        self.barcodes = barcodes
-
-        self.open_streams()
-
-    def open_streams(self):
-        self.streams = {
-            barcode: BGZFile(self.get_output_path(barcode), 'w')
-            for barcode in self.barcodes}
-
-    def close(self):
-        for stream in self.streams.values():
-            stream.close()
-
-    def get_output_path(self, name):
-        return os.path.join(self.outputdir, 'fastq', name + '.fastq.gz')
-
-    def write_sequences(self, seqpacks):
-        for barcode, entries in seqpacks.items():
-            formatted = ''.join('@{}\n{}\n+\n{}\n'.format(*fields) for fields in entries)
-            self.streams[barcode].write(formatted.encode('ascii'))
+    try:
+        with SignalAnalyzer(config, batchid) as analyzer:
+            return [process_file(f5file, 'x', analyzer)
+                    for f5file in reads]
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return -1, 'Unhandled exception {}: {}'.format(type(exc).__name__, str(exc))
 
 
 class ProcessingSession:
@@ -124,11 +96,11 @@ class ProcessingSession:
         self.executor_io = ThreadPoolExecutor(2)
 
         self.loop = self.fastq_writer = None
-
-        self.barcodes = ['Undetermined'] # XXX: change this
+        self.pbar = None
 
     def __enter__(self):
-        self.fastq_writer = FASTQWriter(self.args.output, self.barcodes)
+        self.fastq_writer = FASTQWriter(self.config['outputdir'],
+                                        self.config['output_names'])
 
         self.loop = asyncio.get_event_loop()
         self.executor_compute.__enter__()
@@ -151,9 +123,9 @@ class ProcessingSession:
             errprint(message)
             self.stop('ERROR')
 
-    def stop(self, signalname):
+    def stop(self, signalname='unknown'):
         if self.running:
-            errprint("\nTermination request in process. Please wait for a moment.")
+            errprint("\nTermination in process. Please wait for a moment.")
             self.running = False
         for task in asyncio.Task.all_tasks():
             task.cancel()
@@ -168,16 +140,22 @@ class ProcessingSession:
 
     async def run_process_batch(self, batchid, files):
         try:
-            nprocessed, seqs = await self.run_in_executor_compute(
+            results = await self.run_in_executor_compute(
                 process_batch, batchid, files, self.config)
+
+            if results[:1] == [-1]: # Unhandled exception occurred
+                error_message = results[1]
+                errprint("\nERROR: " + error_message)
+                self.stop()
+                return
         except CancelledError:
             return
 
-        self.reads_processed += nprocessed
-        self.reads_queued -= nprocessed
+        self.reads_processed += len(results)
+        self.reads_queued -= len(results)
 
         try:
-            await self.run_in_executor_io(self.fastq_writer.write_sequences, seqs)
+            await self.run_in_executor_io(self.fastq_writer.write_sequences, results)
         except CancelledError:
             return
 
@@ -231,18 +209,18 @@ class ProcessingSession:
 
     async def monitor_progresses(self):
         pbarclass = NullBar if self.config['quiet'] else ProgressBar
-        pbar = pbarclass(max_value=UnknownLength, initial_value=0)
-        pbar.start()
+        self.pbar = pbarclass(max_value=UnknownLength, initial_value=0)
+        self.pbar.start()
         pbar_growing = True
 
         while self.running:
             if pbar_growing and self.scan_finished:
                 pbar_growing = False
-                pbar = pbarclass(max_value=self.reads_found,
+                self.pbar = pbarclass(max_value=self.reads_found,
                                  initial_value=self.reads_processed)
-                pbar.start()
+                self.pbar.start()
             else:
-                pbar.update(self.reads_processed)
+                self.pbar.update(self.reads_processed)
 
             await asyncio.sleep(0.3)
 
@@ -278,4 +256,10 @@ class ProcessingSession:
                         errprint('\nInterrupted')
                     except Exception as exc:
                         errprint('\nERROR: ' + str(exc))
+
+            if (not config['quiet'] and
+                    sess.scan_finished and sess.reads_found == sess.reads_processed):
+                if sess.pbar is not None:
+                    sess.pbar.finish()
+                print('\n\nFinished.')
 
