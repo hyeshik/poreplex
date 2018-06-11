@@ -2,7 +2,8 @@ rule process_scores:
     input:
         alignments=expand('alignments/{{run}}-{sample}.bam',
                           sample=REFERNCE_TRANSCRIPTOME_SEQS),
-        blacklist='refs/badtranscripts.txt'
+        blacklist='refs/badtranscripts.txt',
+        readid_blacklist='refs/fusion-reads.txt'
     output: 'tables/alignment-scores-{run}.txt'
     run:
         import pandas as pd
@@ -11,7 +12,8 @@ rule process_scores:
         import re
 
         blacklist = set(open(input.blacklist).read().split())
-        readids_ambig = set()
+        #readids_ambig = set()
+        readids_ambig = set(open(input.readid_blacklist).read().split())
 
         def total_m_length(cigar, pat=re.compile(r'(\d+)M')):
             return sum(map(int, pat.findall(cigar)), 0)
@@ -50,6 +52,7 @@ rule process_scores:
             refinfo[0]: idxi
             for idxi, refinfo in enumerate(config['reference_transcriptomes'])}
         scores['_best_score'] = best_score
+        scores['_second_best_score'] = second_best_score
         scores['_best_score_ratio'] = best_score / (best_score + second_best_score)
         scores['_best_score_idx'] = best_score_idx
         scores['_best_score_idxi'] = best_score_idx.apply(sample2index.__getitem__)
@@ -92,7 +95,12 @@ rule select_reads:
         selection_criteria = config['train_data_selection']
         selected = seqs[
             (seqs['_best_score'] >= selection_criteria['min_alignment_score']) &
+            (seqs['_second_best_score'] <= selection_criteria['max_2nd_alignment_score']) &
             (seqs['_best_score_ratio'] >= selection_criteria['min_alignment_score_ratio']) &
+            (seqs['sequence_length_template'] - seqs['_best_score'] <=
+                    selection_criteria['max_unalignable_length']) &
+            (seqs['_best_score'] / seqs['sequence_length_template'] >=
+                    selection_criteria['min_alignment_coverage']) &
             (seqs['adapter_length'] >= selection_criteria['min_adapter_length']) &
             (seqs['adapter_length'] <= selection_criteria['max_adapter_length']) &
             (seqs['sequence_length_template'] >= selection_criteria['min_sequence_length'])]

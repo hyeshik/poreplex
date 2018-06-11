@@ -10,8 +10,11 @@ reference_transcriptomes:
 reference_transcriptome_filtering:
   blacklist_alignment_match_length: 100
 train_data_selection:
-  min_alignment_score: 150
+  min_alignment_score: 200
+  max_2nd_alignment_score: 100
   min_alignment_score_ratio: 0.833 # 5/(1+5): factor of 5
+  min_alignment_coverage: 0.5
+  max_unalignable_length: 250
   min_adapter_length: 4000
   max_adapter_length: 30000
   min_sequence_length: 200
@@ -21,43 +24,27 @@ train_data_transform:
   trim_adapter_length: 15000
   summarization_window_size: 20
   test_data_split: 0.2
-  subsample_sizes: [2000, 10000, 20000, 9999999]
+  subsample_sizes: [2000, 10000, 20000, 50000, 9999999]
   final_trim_sizes: [500, 750, 1000, 1200, 1499]
 training_parameters:
   global:
     ngpu: 2
-    epochs: 50
+    epochs: 100
     validation_split: 0.1
     batchsize_train: 512
     batchsize_eval: 64
     batchsize_test: 64
     optimizer: adam
-    model_checkpoint_period: 10
+    model_checkpoint_period: 1
     earlystopping_min_delta: 0.001
-    earlystopping_patience: 10
-    reducelr_min_delta: 0.01
-    reducelr_patience: 5
-    reducelr_min_lr: 0.00005
-    reducelr_factor: 0.25
-  GRU_128_128:
+    earlystopping_patience: 20
+  GRU_128_128_05:
     - [GRU, 128]
     - [Dropout, 0.5]
     - [GRU, 128]
     - [Dropout, 0.5]
-  GRU_64_192:
-    - [GRU, 64]
-    - [Dropout, 0.5]
-    - [GRU, 192]
-    - [Dropout, 0.5]
-  GRU_192_64:
-    - [GRU, 192]
-    - [Dropout, 0.5]
-    - [GRU, 64]
-    - [Dropout, 0.5]
-  GRU_triple64:
-    - [GRU, 64]
-    - [Dropout, 0.5]
-    - [GRU, 64]
-    - [Dropout, 0.5]
-    - [GRU, 64]
-    - [Dropout, 0.5]
+  GRU_128_128_03:
+    - [GRU, 128]
+    - [Dropout, 0.3]
+    - [GRU, 128]
+    - [Dropout, 0.3]

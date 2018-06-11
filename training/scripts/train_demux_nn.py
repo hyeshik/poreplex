@@ -24,7 +24,7 @@
 import h5py
 from keras.layers import Dense, Dropout, GRU, LSTM
 from keras.models import Sequential
-from keras.callbacks import Callback, EarlyStopping, ReduceLROnPlateau
+from keras.callbacks import Callback, EarlyStopping
 from keras.utils.training_utils import multi_gpu_model
 import tensorflow as tf
 import shutil
@@ -124,12 +124,6 @@ def train_model(model, pmodel, global_params, training_data, output_dir):
         min_delta=global_params['earlystopping_min_delta'],
         patience=global_params['earlystopping_patience'],
         verbose=1)
-    reducelr = ReduceLROnPlateau(monitor='val_loss',
-        min_delta=global_params['reducelr_min_delta'],
-        patience=global_params['reducelr_patience'],
-        min_lr=global_params['reducelr_min_lr'],
-        factor=global_params['reducelr_factor'],
-        verbose=1)
 
     hist = pmodel.fit(training_data['signals'],
                       training_data['onehot'],
@@ -137,7 +131,7 @@ def train_model(model, pmodel, global_params, training_data, output_dir):
                       epochs=global_params['epochs'],
                       validation_split=global_params['validation_split'],
                       verbose=1,
-                      callbacks=[modelcheckpoint, earlystopping, reducelr],
+                      callbacks=[modelcheckpoint, earlystopping],
                       class_weight=training_data['weights'])
 
     model.save(output_dir + '/model.hdf5')
