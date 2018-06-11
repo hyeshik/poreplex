@@ -228,13 +228,6 @@ class SignalAnalysis:
 
         for left in range(payload_start, events.iloc[-1]['end'], window_step):
             evblock = events[events['start'].between(left, left + window_size)]
-            if 0:
-                from matplotlib import pyplot as plt
-                fig, axes = plt.subplots(2, 1, figsize=(6, 4))
-                axes[0].plot(events['mean'].tolist())
-                axes[1].plot(evblock['mean'].tolist())
-                plt.show()
-
             if len(evblock) < 1:
                 break
 
@@ -345,7 +338,6 @@ class SignalAnalysis:
             'fastq': self.sequence,
         })
         return self.readinfo
-        #sequence_length, mean_qscore, <- from basecalls
 
     def dump_adapter_signal(self, events, segments):
         adapter_events = events.iloc[slice(*segments['adapter'])]
