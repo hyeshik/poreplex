@@ -24,6 +24,7 @@ import asyncio
 import signal
 import sys
 import os
+from errno import EXDEV
 from progressbar import ProgressBar, NullBar, UnknownLength
 from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
@@ -152,18 +153,52 @@ class ProcessingSession:
         except CancelledError:
             return
 
-        self.reads_processed += len(results)
-        self.reads_queued -= len(results)
-
         try:
             await self.run_in_executor_io(self.fastq_writer.write_sequences, results)
         except CancelledError:
             return
 
+        if self.config['fast5_output']:
+            try:
+                await self.run_in_executor_io(self.link_fast5, results)
+            except CancelledError:
+                return
+
         try:
             await self.run_in_executor_io(self.seqsummary_writer.write_results, results)
         except CancelledError:
             return
+
+        self.reads_processed += len(results)
+        self.reads_queued -= len(results)
+
+    def link_fast5(self, results):
+        indir = self.config['inputdir']
+        outdir = self.config['outputdir']
+        symlinkfirst = self.config['fast5_always_symlink']
+        blacklist_hardlinks = set()
+
+        for entry in results:
+            original_fast5 = os.path.join(indir, entry['filename'])
+            link_path = os.path.join(outdir, 'fast5', entry['label'], entry['filename'])
+
+            original_dir = os.path.dirname(original_fast5)
+            link_dir = os.path.dirname(link_path)
+
+            if not os.path.isdir(link_dir):
+                os.makedirs(link_dir)
+
+            if not symlinkfirst and (original_dir, link_dir) not in blacklist_hardlinks:
+                try:
+                    os.link(original_fast5, link_path)
+                except OSError as exc:
+                    if exc.errno != EXDEV:
+                        raise
+                    blacklist_hardlinks.add((original_dir, link_dir))
+                else:
+                    continue
+
+            os.symlink(os.path.abspath(original_fast5), link_path)
 
     def queue_processing(self, filepath):
         self.jobstack.append(filepath)
