@@ -26,8 +26,10 @@ from weakref import proxy
 from itertools import groupby
 from ont_fast5_api.fast5_file import Fast5File
 from ont_fast5_api.analysis_tools.basecall_1d import Basecall1DTools
+import multiprocessing as mp
 import numpy as np
 import pandas as pd
+from hashlib import sha1
 import os
 import h5py
 from scipy.signal import medfilt
@@ -50,11 +52,12 @@ class SignalAnalyzer:
         self.kmersize = len(self.kmermodel.index[0])
         self.inputdir = config['inputdir']
         self.outputdir = config['outputdir']
+        self.workerid = sha1(mp.current_process().name.encode()).hexdigest()
         self.batchid = batchid
 
         if config['dump_adapter_signals']:
             self.adapter_dump_file, self.adapter_dump_group = (
-                self.open_adapter_dump_file(outputdir, batchid))
+                self.open_adapter_dump_file())
             self.adapter_dump_list = []
         else:
             self.adapter_dump_file = self.adapter_dump_group = None
@@ -62,10 +65,11 @@ class SignalAnalyzer:
     def process(self, filename, outputprefix):
         return SignalAnalysis(filename, self).process()
 
-    def open_adapter_dump_file(self, outputdir, batchid):
-        h5filename = os.path.join(outputdir, 'adapter-dumps', '{:08d}.h5'.format(batchid))
-        h5 = h5py.File(h5filename, 'w')
-        h5group = h5.create_group('adapter/{:08d}'.format(batchid))
+    def open_adapter_dump_file(self):
+        h5filename = os.path.join(self.outputdir, 'adapter-dumps',
+                                  'part-' + self.workerid + '.h5')
+        h5 = h5py.File(h5filename, 'a')
+        h5group = h5.require_group('adapter/{:08d}'.format(self.batchid))
         return h5, h5group
 
     def push_adapter_signal_catalog(self, read_id, adapter_start, adapter_end):
@@ -79,7 +83,7 @@ class SignalAnalyzer:
 
     def close(self):
         if self.adapter_dump_file is not None:
-            catgrp = self.adapter_dump_file.create_group('catalog/adapter')
+            catgrp = self.adapter_dump_file.require_group('catalog/adapter')
             encodedarray = np.array(self.adapter_dump_list,
                 dtype=[('readid', 'S36'), ('start', 'i8'), ('end', 'i8')])
             try:
@@ -343,10 +347,10 @@ class SignalAnalysis:
         adapter_events = events.iloc[slice(*segments['adapter'])]
         if len(adapter_events) > 0:
           try:
-            self.analyzer.adapter_dump_group.create_dataset(self.read_id,
+            self.analyzer.adapter_dump_group.create_dataset(self.readinfo['read_id'],
                 shape=(len(adapter_events),), dtype=np.float32,
                 data=adapter_events['scaled_mean'])
-            self.analyzer.push_adapter_signal_catalog(self.read_id,
+            self.analyzer.push_adapter_signal_catalog(self.readinfo['read_id'],
                 adapter_events['start'].iloc[0], adapter_events['end'].iloc[-1])
           except:
               import traceback

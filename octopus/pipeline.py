@@ -29,7 +29,7 @@ from progressbar import ProgressBar, NullBar, UnknownLength
 from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
 from . import *
-from .io import FASTQWriter, SequencingSummaryWriter
+from .io import FASTQWriter, SequencingSummaryWriter, create_inventory_hdf5
 from .signal_analyzer import SignalAnalyzer
 from .utils import *
 
@@ -77,7 +77,6 @@ def process_batch(batchid, reads, config):
         import traceback
         traceback.print_exc()
         return -1, 'Unhandled exception {}: {}'.format(type(exc).__name__, str(exc))
-
 
 class ProcessingSession:
 
@@ -145,27 +144,19 @@ class ProcessingSession:
             results = await self.run_in_executor_compute(
                 process_batch, batchid, files, self.config)
 
-            if results[:1] == [-1]: # Unhandled exception occurred
+            if len(results) > 0 and results[0] == -1: # Unhandled exception occurred
                 error_message = results[1]
                 errprint("\nERROR: " + error_message)
                 self.stop()
                 return
-        except CancelledError:
-            return
 
-        try:
             await self.run_in_executor_io(self.fastq_writer.write_sequences, results)
-        except CancelledError:
-            return
 
-        if self.config['fast5_output']:
-            try:
+            if self.config['fast5_output']:
                 await self.run_in_executor_io(self.link_fast5, results)
-            except CancelledError:
-                return
 
-        try:
             await self.run_in_executor_io(self.seqsummary_writer.write_results, results)
+
         except CancelledError:
             return
 
@@ -273,10 +264,19 @@ class ProcessingSession:
     def terminate_executors(self):
         force_terminate_executor(self.executor_compute)
 
+    def finalize_results(self):
+        if self.config['dump_adapter_signals']:
+            print("==> Creating an inventory for adapter signal dumps...")
+            adapter_dump_prefix = os.path.join(self.config['outputdir'], 'adapter-dumps')
+            create_inventory_hdf5(
+                os.path.join(adapter_dump_prefix, 'inventory.h5'),
+                os.path.join(adapter_dump_prefix, 'part-*.h5'),
+                ['adapter', 'catalog/adapter'])
 
     @classmethod
     def run(kls, config, args):
         with kls(config, args) as sess:
+            print("==> Processing FAST5 files...")
             monitor_task = sess.loop.create_task(sess.monitor_progresses())
 
             scanjob = sess.scan_dir_recursive(config['inputdir'])
@@ -304,4 +304,9 @@ class ProcessingSession:
                     sess.scan_finished and sess.reads_found == sess.reads_processed):
                 if sess.pbar is not None:
                     sess.pbar.finish()
-                print('\n\nFinished.')
+
+                print('\n')
+
+                sess.finalize_results()
+
+                print('==> Finished.')

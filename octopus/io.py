@@ -21,6 +21,8 @@
 #
 
 from pysam import BGZFile
+from glob import glob
+import h5py
 import os
 
 
@@ -70,3 +72,17 @@ class SequencingSummaryWriter:
         for entry in results:
             print(*[entry[f] for f in self.SUMMARY_OUTPUT_FIELDS],
                   file=self.file, sep='\t')
+
+def create_inventory_hdf5(destfile, filepattern, groupnames):
+    def link_group_items(groupname):
+        destgrp = ivt.require_group(groupname)
+
+        for datafile in glob(filepattern):
+            basename = os.path.basename(datafile)
+            with h5py.File(datafile, 'r') as d5:
+                for k in d5[groupname].keys():
+                    destgrp[k] = h5py.ExternalLink(basename, groupname + '/' + k)
+
+    with h5py.File(destfile, 'w') as ivt:
+        for groupname in groupnames:
+            link_group_items(groupname)

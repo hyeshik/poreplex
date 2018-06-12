@@ -110,7 +110,7 @@ def show_configuration(config, args, file):
     _ = partial(print, sep='\t', file=file)
     bool2yn = lambda b: 'Yes' if b else 'No'
 
-    _("==== Analysis settings ====")
+    _("== Analysis settings ======================================")
     _(" * Input:", config['inputdir'])
     _(" * Output:", config['outputdir'])
     _(" * Processes:", args.parallel)
@@ -124,8 +124,7 @@ def show_configuration(config, args, file):
 
     if config['dump_adapter_signals']:
         _(" * Dump adapter signals for training:", "Yes")
-
-    _("===========================\n")
+    _("===========================================================\n")
 
 def main(args):
     if not args.quiet:
@@ -151,7 +150,7 @@ def main(args):
     config['dump_adapter_signals'] = args.dump_adapter_signals
     config['dump_basecalls'] = args.dump_basecalled_events
     config['fast5_output'] = args.fast5
-    config['fast5_always_symlink'] = args.always_symlink_fast5
+    config['fast5_always_symlink'] = args.symlink_fast5
     config['trim_adapter'] = args.trim_adapter
     config['output_names'] = setup_output_name_mapping(config)
 
@@ -199,7 +198,7 @@ def __main__():
                         help='Dump basecalled events from albacore to the output')
     parser.add_argument('-5', '--fast5', default=False, action='store_true',
                         help='Link or copy FAST5 files to separate output directories.')
-    parser.add_argument('--always-symlink-fast5', default=False, action='store_true',
+    parser.add_argument('--symlink-fast5', default=False, action='store_true',
                         help='Create symbolic links to FAST5 files in output directories '
                              'even when hard linking is possible.')
     parser.add_argument('-q', '--quiet', default=False, action='store_true',
