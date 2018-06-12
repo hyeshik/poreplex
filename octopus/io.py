@@ -23,6 +23,7 @@
 from pysam import BGZFile
 from glob import glob
 import h5py
+import numpy as np
 import os
 
 
@@ -73,16 +74,40 @@ class SequencingSummaryWriter:
             print(*[entry[f] for f in self.SUMMARY_OUTPUT_FIELDS],
                   file=self.file, sep='\t')
 
-def create_inventory_hdf5(destfile, filepattern, groupnames):
-    def link_group_items(groupname):
-        destgrp = ivt.require_group(groupname)
+
+def create_adapter_dumps_inventory(destfile, filepattern):
+    with h5py.File(destfile, 'w') as ivt:
+        # Merge items under catalog/adapter group.
+        ivt.require_group('catalog')
+
+        fragments = []
+        for datafile in glob(filepattern):
+            with h5py.File(datafile, 'r') as d5:
+                for batchid, tbl in d5['catalog/adapter'].items():
+                    fragments.append(tbl[:])
+
+        fulltbl = np.hstack(fragments)
+        fulltbl.sort(order='read_id')
+        ivt['catalog/adapter'] = fulltbl
+
+        # Create hashed groups of external links for the signal datasets.
+        ivt.require_group('adapter')
 
         for datafile in glob(filepattern):
             basename = os.path.basename(datafile)
             with h5py.File(datafile, 'r') as d5:
-                for k in d5[groupname].keys():
-                    destgrp[k] = h5py.ExternalLink(basename, groupname + '/' + k)
+                for batchid, subgrp in d5['adapter'].items():
+                    for readid in subgrp.keys():
+                        dumpgroup = get_read_id_dump_group(readid)
+                        gobj = ivt.require_group('adapter/' + dumpgroup)
+                        try:
+                            gobj[readid] = h5py.ExternalLink(basename,
+                                'adapter/{}/{}'.format(batchid, readid))
+                        except RuntimeError:
+                            if readid not in gobj:
+                                raise
 
-    with h5py.File(destfile, 'w') as ivt:
-        for groupname in groupnames:
-            link_group_items(groupname)
+def get_read_id_dump_group(read_id, grplength=3):
+    #hash = unpack('I', sha1(read_id.encode('ascii')).digest()[:4])[0] % hashsize
+    #return format(hash, numformat)
+    return read_id[:grplength]

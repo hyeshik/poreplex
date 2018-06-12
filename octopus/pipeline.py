@@ -29,7 +29,7 @@ from progressbar import ProgressBar, NullBar, UnknownLength
 from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
 from . import *
-from .io import FASTQWriter, SequencingSummaryWriter, create_inventory_hdf5
+from .io import FASTQWriter, SequencingSummaryWriter, create_adapter_dumps_inventory
 from .signal_analyzer import SignalAnalyzer
 from .utils import *
 
@@ -268,10 +268,9 @@ class ProcessingSession:
         if self.config['dump_adapter_signals']:
             print("==> Creating an inventory for adapter signal dumps...")
             adapter_dump_prefix = os.path.join(self.config['outputdir'], 'adapter-dumps')
-            create_inventory_hdf5(
+            create_adapter_dumps_inventory(
                 os.path.join(adapter_dump_prefix, 'inventory.h5'),
-                os.path.join(adapter_dump_prefix, 'part-*.h5'),
-                ['adapter', 'catalog/adapter'])
+                os.path.join(adapter_dump_prefix, 'part-*.h5'))
 
     @classmethod
     def run(kls, config, args):

@@ -54,6 +54,7 @@ class SignalAnalyzer:
         self.outputdir = config['outputdir']
         self.workerid = sha1(mp.current_process().name.encode()).hexdigest()
         self.batchid = batchid
+        self.formatted_batchid = format(batchid, '08d')
 
         if config['dump_adapter_signals']:
             self.adapter_dump_file, self.adapter_dump_group = (
@@ -69,7 +70,7 @@ class SignalAnalyzer:
         h5filename = os.path.join(self.outputdir, 'adapter-dumps',
                                   'part-' + self.workerid + '.h5')
         h5 = h5py.File(h5filename, 'a')
-        h5group = h5.require_group('adapter/{:08d}'.format(self.batchid))
+        h5group = h5.require_group('adapter/' + self.formatted_batchid)
         return h5, h5group
 
     def push_adapter_signal_catalog(self, read_id, adapter_start, adapter_end):
@@ -85,9 +86,9 @@ class SignalAnalyzer:
         if self.adapter_dump_file is not None:
             catgrp = self.adapter_dump_file.require_group('catalog/adapter')
             encodedarray = np.array(self.adapter_dump_list,
-                dtype=[('readid', 'S36'), ('start', 'i8'), ('end', 'i8')])
+                dtype=[('read_id', 'S36'), ('start', 'i8'), ('end', 'i8')])
             try:
-                catgrp.create_dataset(format(self.batchid, '08d'), shape=encodedarray.shape,
+                catgrp.create_dataset(self.formatted_batchid, shape=encodedarray.shape,
                                       data=encodedarray)
             except:
                 import traceback
@@ -346,15 +347,16 @@ class SignalAnalysis:
     def dump_adapter_signal(self, events, segments):
         adapter_events = events.iloc[slice(*segments['adapter'])]
         if len(adapter_events) > 0:
-          try:
-            self.analyzer.adapter_dump_group.create_dataset(self.readinfo['read_id'],
-                shape=(len(adapter_events),), dtype=np.float32,
-                data=adapter_events['scaled_mean'])
+            try:
+                self.analyzer.adapter_dump_group.create_dataset(self.readinfo['read_id'],
+                    shape=(len(adapter_events),), dtype=np.float32,
+                    data=adapter_events['scaled_mean'])
+            except:
+                if self.readinfo['read_id'] in self.analyzer.adapter_dump_group:
+                    return
+                raise
             self.analyzer.push_adapter_signal_catalog(self.readinfo['read_id'],
                 adapter_events['start'].iloc[0], adapter_events['end'].iloc[-1])
-          except:
-              import traceback
-              traceback.print_exc() # XXX: check duplicated reads
 
 
 # Internal serialization implementation pomegranate to json does not accurately
