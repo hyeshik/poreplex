@@ -333,7 +333,7 @@ class SignalAnalysis:
                 self.sequence[1][:-adapter_basecall_length])
 
     def process(self):
-        error_set = 'no_error'
+        error_set = 'okay'
 
         try:
             events = self.load_events()
