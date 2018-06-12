@@ -179,7 +179,10 @@ class ProcessingSession:
             link_dir = os.path.dirname(link_path)
 
             if not os.path.isdir(link_dir):
-                os.makedirs(link_dir)
+                try:
+                    os.makedirs(link_dir)
+                except FileExistsError:
+                    pass
 
             if not symlinkfirst and (original_dir, link_dir) not in blacklist_hardlinks:
                 try:
