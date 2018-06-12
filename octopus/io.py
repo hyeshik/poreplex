@@ -75,6 +75,23 @@ class SequencingSummaryWriter:
                   file=self.file, sep='\t')
 
 
+def create_links_rebalanced(desth5, group, infiles):
+    desth5.require_group(group)
+
+    for datafile in infiles:
+        basename = os.path.basename(datafile)
+        with h5py.File(datafile, 'r') as d5:
+            for batchid, subgrp in d5[group].items():
+                for readid in subgrp.keys():
+                    dumpgroup = get_read_id_dump_group(readid)
+                    gobj = desth5.require_group(group + '/' + dumpgroup)
+                    try:
+                        gobj[readid] = h5py.ExternalLink(basename,
+                            '{}/{}/{}'.format(group, batchid, readid))
+                    except RuntimeError:
+                        if readid not in gobj:
+                            raise
+
 def create_adapter_dumps_inventory(destfile, filepattern):
     with h5py.File(destfile, 'w') as ivt:
         # Merge items under catalog/adapter group.
@@ -91,21 +108,11 @@ def create_adapter_dumps_inventory(destfile, filepattern):
         ivt['catalog/adapter'] = fulltbl
 
         # Create hashed groups of external links for the signal datasets.
-        ivt.require_group('adapter')
+        create_links_rebalanced(ivt, 'adapter', glob(filepattern))
 
-        for datafile in glob(filepattern):
-            basename = os.path.basename(datafile)
-            with h5py.File(datafile, 'r') as d5:
-                for batchid, subgrp in d5['adapter'].items():
-                    for readid in subgrp.keys():
-                        dumpgroup = get_read_id_dump_group(readid)
-                        gobj = ivt.require_group('adapter/' + dumpgroup)
-                        try:
-                            gobj[readid] = h5py.ExternalLink(basename,
-                                'adapter/{}/{}'.format(batchid, readid))
-                        except RuntimeError:
-                            if readid not in gobj:
-                                raise
+def create_events_inventory(destfile, filepattern):
+    with h5py.File(destfile, 'w') as ivt:
+        create_links_rebalanced(ivt, 'basecalled_events', glob(filepattern))
 
 def get_read_id_dump_group(read_id, grplength=3):
     #hash = unpack('I', sha1(read_id.encode('ascii')).digest()[:4])[0] % hashsize

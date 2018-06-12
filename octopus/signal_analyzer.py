@@ -44,6 +44,14 @@ class PipelineHandledError(Exception):
 
 class SignalAnalyzer:
 
+    _EVENT_DUMP_FIELD_NAMES = [
+        'mean', 'start', 'stdv', 'length', 'model_state',
+        'move', 'p_model_state', 'weights', 'pos', 'end', 'scaled_mean']
+    _EVENT_DUMP_FIELD_DTYPES = [
+        '<f4', '<u8', '<f4', '<u8', None, '<i4',
+        '<f4', '<f4', '<u8', '<u8', '<f8']
+    EVENT_DUMP_FIELDS = list(zip(_EVENT_DUMP_FIELD_NAMES, _EVENT_DUMP_FIELD_DTYPES))
+
     def __init__(self, config, batchid):
         self.config = config
         self.segmodel = load_segmentation_model(config['segmentation_model'])
@@ -52,29 +60,47 @@ class SignalAnalyzer:
         self.kmersize = len(self.kmermodel.index[0])
         self.inputdir = config['inputdir']
         self.outputdir = config['outputdir']
-        self.workerid = sha1(mp.current_process().name.encode()).hexdigest()
+        self.workerid = sha1(mp.current_process().name.encode()).hexdigest()[:16]
         self.batchid = batchid
         self.formatted_batchid = format(batchid, '08d')
+        self.EVENT_DUMP_FIELDS[4] = (self.EVENT_DUMP_FIELDS[4][0], 'S{}'.format(self.kmersize))
 
         if config['dump_adapter_signals']:
-            self.adapter_dump_file, self.adapter_dump_group = (
-                self.open_adapter_dump_file())
+            self.adapter_dump_file, self.adapter_dump_group = \
+                self.open_dump_file('adapter-dumps', 'adapter')
             self.adapter_dump_list = []
         else:
             self.adapter_dump_file = self.adapter_dump_group = None
 
+        if config['dump_basecalls']:
+            self.basecall_dump_file, self.basecall_dump_group = \
+                self.open_dump_file('events', 'basecalled_events')
+        else:
+            self.basecall_dump_file = self.basecall_dump_group = None
+
     def process(self, filename, outputprefix):
         return SignalAnalysis(filename, self).process()
 
-    def open_adapter_dump_file(self):
-        h5filename = os.path.join(self.outputdir, 'adapter-dumps',
+    def open_dump_file(self, subdir, parentgroup):
+        h5filename = os.path.join(self.outputdir, subdir,
                                   'part-' + self.workerid + '.h5')
         h5 = h5py.File(h5filename, 'a')
-        h5group = h5.require_group('adapter/' + self.formatted_batchid)
+        h5group = h5.require_group(parentgroup +
+                                   '/' + self.formatted_batchid)
         return h5, h5group
 
     def push_adapter_signal_catalog(self, read_id, adapter_start, adapter_end):
         self.adapter_dump_list.append((read_id, adapter_start, adapter_end))
+
+    def write_basecalled_events(self, read_id, events):
+        dataset = np.empty(len(events), dtype=self.EVENT_DUMP_FIELDS)
+        for name, dtype in self.EVENT_DUMP_FIELDS:
+            dataset[name] = events[name]
+        try:
+            self.basecall_dump_group[read_id] = dataset
+        except RuntimeError:
+            if read_id not in self.basecall_dump_group:
+                raise
 
     def __enter__(self):
         return self
@@ -87,13 +113,12 @@ class SignalAnalyzer:
             catgrp = self.adapter_dump_file.require_group('catalog/adapter')
             encodedarray = np.array(self.adapter_dump_list,
                 dtype=[('read_id', 'S36'), ('start', 'i8'), ('end', 'i8')])
-            try:
-                catgrp.create_dataset(self.formatted_batchid, shape=encodedarray.shape,
-                                      data=encodedarray)
-            except:
-                import traceback
-                traceback.print_exc() # XXX: check duplicated reads
+            catgrp.create_dataset(self.formatted_batchid, shape=encodedarray.shape,
+                                  data=encodedarray)
             self.adapter_dump_file.close()
+
+        if self.basecall_dump_file is not None:
+            self.basecall_dump_file.close()
 
 
 class SignalAnalysis:
@@ -312,6 +337,9 @@ class SignalAnalysis:
 
         try:
             events = self.load_events()
+            if self.analyzer.config['dump_basecalls']:
+                self.analyzer.write_basecalled_events(
+                        self.readinfo['read_id'], events)
 
             segments = self.detect_segments(events)
             if 'adapter' not in segments:

@@ -78,13 +78,16 @@ def create_output_directories(outputdir, config):
             else:
                 os.unlink(fpath)
 
-    subdirs = ['fastq', 'tmp']
+    subdirs = ['fastq']
 
     if config['fast5_output']:
         subdirs.extend(['fast5'])
 
     if config['dump_adapter_signals']:
         subdirs.extend(['adapter-dumps'])
+
+    if config['dump_basecalls']:
+        subdirs.extend(['events'])
 
     for subdir in subdirs:
         fullpath = os.path.join(outputdir, subdir)

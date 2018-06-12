@@ -29,7 +29,9 @@ from progressbar import ProgressBar, NullBar, UnknownLength
 from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
 from . import *
-from .io import FASTQWriter, SequencingSummaryWriter, create_adapter_dumps_inventory
+from .io import (
+    FASTQWriter, SequencingSummaryWriter, create_adapter_dumps_inventory,
+    create_events_inventory)
 from .signal_analyzer import SignalAnalyzer
 from .utils import *
 
@@ -271,6 +273,13 @@ class ProcessingSession:
             create_adapter_dumps_inventory(
                 os.path.join(adapter_dump_prefix, 'inventory.h5'),
                 os.path.join(adapter_dump_prefix, 'part-*.h5'))
+
+        if self.config['dump_basecalls']:
+            print("==> Creating an inventory for basecalled events...")
+            events_prefix = os.path.join(self.config['outputdir'], 'events')
+            create_events_inventory(
+                os.path.join(events_prefix, 'inventory.h5'),
+                os.path.join(events_prefix, 'part-*.h5'))
 
     @classmethod
     def run(kls, config, args):
