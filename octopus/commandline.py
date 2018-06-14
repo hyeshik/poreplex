@@ -150,6 +150,7 @@ def main(args):
     config['barcoding'] = args.barcoding
     config['filter_unsplit_reads'] = not args.keep_unsplit
     config['batch_chunk_size'] = args.batch_chunk
+    config['albacore_onthefly'] = args.albacore_onthefly
     config['dump_adapter_signals'] = args.dump_adapter_signals
     config['dump_basecalls'] = args.dump_basecalled_events
     config['fast5_output'] = args.fast5
@@ -165,12 +166,14 @@ def main(args):
         print("\nCommand line:", ' '.join(sys.argv) + '\n', file=cfgf)
 
         show_configuration(config, args, file=cfgf)
+        cfgf.flush()
 
-    if not config['quiet']:
-        show_configuration(config, args, sys.stdout)
+        if not config['quiet']:
+            show_configuration(config, args, sys.stdout)
 
-    ProcessingSession.run(config, args)
+        ProcessingSession.run(config, args)
 
+        print("\nFinished at", time.asctime(), file=cfgf)
 
 def __main__():
     parser = argparse.ArgumentParser(
@@ -187,7 +190,7 @@ def __main__():
                         help='Number of files in a single batch (default: 128)')
     parser.add_argument('-c', '--config', default='',
                         help='Path to signal processing configuration.')
-    parser.add_argument('--albacore', default=False, action='store_true',
+    parser.add_argument('--albacore-onthefly', default=False, action='store_true',
                         help='Call the ONT albacore for basecalling on-the-fly.')
     parser.add_argument('--barcoding', default=False, action='store_true',
                         help='Sort barcoded reads into separate outputs.')
@@ -198,7 +201,7 @@ def __main__():
     parser.add_argument('--dump-adapter-signals', default=False, action='store_true',
                         help='Dump adapter signal dumps for training')
     parser.add_argument('--dump-basecalled-events', default=False, action='store_true',
-                        help='Dump basecalled events from albacore to the output')
+                        help='Dump basecalled events to the output')
     parser.add_argument('-5', '--fast5', default=False, action='store_true',
                         help='Link or copy FAST5 files to separate output directories.')
     parser.add_argument('--symlink-fast5', default=False, action='store_true',
