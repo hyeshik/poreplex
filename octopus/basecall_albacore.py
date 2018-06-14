@@ -1,0 +1,122 @@
+#
+# Copyright (c) 2018 Hyeshik Chang
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+
+__all__ = ['check_albacore', 'AlbacoreBroker']
+
+# All albacore modules are loaded from the insides of functions to enable
+# graceful detection of ImportErrors in check_albacore().
+from itertools import product
+from configparser import ConfigParser
+import pandas as pd
+import os
+
+REQUIRED_ALBACORE_VERSION = '2.3.0'
+
+def check_albacore(flowcell, kit, version_min=REQUIRED_ALBACORE_VERSION):
+    from distutils.version import LooseVersion
+    try:
+        from albacore import __version__
+    except ImportError:
+        raise Exception("Could not load `albacore.' Check PYTHONPATH.")
+
+    if LooseVersion(__version__) < LooseVersion(version_min):
+        raise Exception('Albacore {} is detected although {} is required.'.format(
+            __version__, version_min))
+
+    from albacore.path_utils import get_default_path
+    from albacore.config_selector import choose_config
+
+    try:
+        albacore_data_path = get_default_path('.')
+        choose_config(albacore_data_path, flowcell, kit)
+    except:
+        raise Exception('Unsupported flowcell or kit from albacore.')
+
+    return __version__
+
+
+class AlbacoreBroker:
+
+    LAYOUT_FILE = 'layout_raw_basecall_1d.jsn'
+    WORKERS_SINGLE_PROCESS = 0
+
+    def __init__(self, kmer_size):
+        from albacore.path_utils import get_default_path
+
+        self.albacore_data_path = get_default_path('.')
+        self.descr_file = os.path.join(self.albacore_data_path, self.LAYOUT_FILE)
+        self.kmer_decode_table = list(map(''.join, product('ACGT', repeat=kmer_size)))
+
+    def initialize_core(self, configpath, flowcell, kit):
+        from albacore.config_selector import choose_config
+        from albacore.pipeline_core import PipelineCore
+
+        template = choose_config(self.albacore_data_path, flowcell, kit)
+        config = ConfigParser(interpolation=None)
+        config.read_file(open(template[0]))
+        config['basecaller']['model_path'] = self.albacore_data_path
+        config.write(open(configpath, 'w'))
+
+        self.core = PipelineCore(self.descr_file, configpath, self.WORKERS_SINGLE_PROCESS)
+
+    def adopt_basecalled_table(self, result):
+        field_names = 'mean start stdv length model_state move p_model_state weights'.split()
+        return pd.DataFrame.from_items(
+            [(field, result[field] if field != 'model_state'
+              else list(map(self.kmer_decode_table.__getitem__, result[field])))
+             for field in field_names])
+
+    def basecall(self, rawdata, channel_info, read_info, filename):
+        read_id = read_info.read_id
+
+        self.core.pass_data({
+            'sampling_rate': channel_info['sampling_rate'],
+            'start_time': read_info.start_time,
+            'read_id': read_id,
+            'data_id': filename,
+            'raw': rawdata,
+        })
+        self.core.finish_all_jobs()
+        results = self.core.get_results()
+
+        if read_id not in results or 'basecall_1d_callback' not in results[read_id]:
+            return None
+
+        bc1dresult = results[read_id]['basecall_1d_callback']
+        return {
+            'events': self.adopt_basecalled_table(bc1dresult),
+            'sequence': bc1dresult['sequence'][::-1].replace('T', 'U'),
+            'qstring': bc1dresult['qstring'][::-1],
+            'sequence_length': bc1dresult['sequence_length'],
+            'mean_qscore': round(bc1dresult['mean_qscore'], 3),
+            'called_events': bc1dresult['called_events'],
+        }
+
+
+if __name__ == '__main__':
+    import sys
+    try:
+        version = check_albacore(sys.argv[1], sys.argv[2])
+    except Exception as exc:
+        print(str(exc))
+    else:
+        print('okay', version)

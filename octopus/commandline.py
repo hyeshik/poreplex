@@ -26,6 +26,7 @@ import os
 import time
 import yaml
 import shutil
+import subprocess as sp
 from functools import partial
 from . import *
 from .pipeline import ProcessingSession
@@ -94,6 +95,11 @@ def create_output_directories(outputdir, config):
         if not os.path.isdir(fullpath):
             os.makedirs(fullpath)
 
+    if not os.path.isdir(config['tmpdir']):
+        os.makedirs(config['tmpdir'])
+        config['cleanup_tmpdir'] = True
+
+
 def setup_output_name_mapping(config):
     names = {'fail': OUTPUT_NAME_FAILED}
 
@@ -118,6 +124,9 @@ def show_configuration(config, args, file):
     _(" * Output:", config['outputdir'])
     _(" * Processes:", args.parallel)
     _(" * Presets:", config['preset_name'])
+    _(" * Basecall on-the-fly:\t",
+        'Yes (albacore {})'.format(config['albacore_version'])
+        if config['albacore_onthefly'] else 'No (use previous analyses)')
     _(" * Trim 3' adapter:\t", bool2yn(config['trim_adapter']))
     _(" * Filter concatenated read:", bool2yn(config['filter_unsplit_reads']))
     _(" * Separate by barcode:\t", bool2yn(config['barcoding']))
@@ -147,6 +156,8 @@ def main(args):
     config['interactive'] = not args.yes
     config['inputdir'] = args.input
     config['outputdir'] = args.output
+    config['tmpdir'] = args.tmpdir if args.tmpdir else os.path.join(args.output, 'tmp')
+    config['cleanup_tmpdir'] = False # will be changed during creation of output dirs
     config['barcoding'] = args.barcoding
     config['filter_unsplit_reads'] = not args.keep_unsplit
     config['batch_chunk_size'] = args.batch_chunk
@@ -157,6 +168,17 @@ def main(args):
     config['fast5_always_symlink'] = args.symlink_fast5
     config['trim_adapter'] = args.trim_adapter
     config['output_names'] = setup_output_name_mapping(config)
+
+    if config['albacore_onthefly']:
+        # Check the availability and version compatibility in a subprocess to
+        # avoid potential conflicts between duplicated resources in the C++
+        # library memory space when the workers are forked into multiple processes.
+        result = sp.check_output([sys.executable, '-m',
+            'octopus.basecall_albacore', config['flowcell'], config['kit']]).decode().strip()
+        if result.startswith('okay'):
+            config['albacore_version'] = result.split()[1]
+        else:
+            errx('ERROR: ' + result)
 
     create_output_directories(args.output, config)
 
@@ -174,6 +196,12 @@ def main(args):
         ProcessingSession.run(config, args)
 
         print("\nFinished at", time.asctime(), file=cfgf)
+
+    if config['cleanup_tmpdir']:
+        try:
+            shutil.rmtree(config['tmpdir'])
+        except:
+            pass
 
 def __main__():
     parser = argparse.ArgumentParser(
@@ -207,6 +235,8 @@ def __main__():
     parser.add_argument('--symlink-fast5', default=False, action='store_true',
                         help='Create symbolic links to FAST5 files in output directories '
                              'even when hard linking is possible.')
+    parser.add_argument('--tmpdir', default='', type=str,
+                        help='Temporary directory for intermediate data.')
     parser.add_argument('-q', '--quiet', default=False, action='store_true',
                         help='Suppress non-error messages.')
     parser.add_argument('-y', '--yes', default=False, action='store_true',
