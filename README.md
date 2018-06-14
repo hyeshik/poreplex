@@ -1,7 +1,6 @@
 # Octopus
-Octopus is a squiggle-level preprocessor for nanopore direct RNA
-sequencing (DRS) data. It transforms data from a sequencing into a more
-friendly form to RNA Biology.
+Signal-level preprocessor for Oxford Nanopore direct RNA sequencing
+(DRS) data. Octopus transforms the data more accessible to RNA Biology.
 
 ## Functions
 * Demultiplexes reads from barcoded libraries
@@ -13,12 +12,12 @@ friendly form to RNA Biology.
 * Organizes the basecalled data in a less redundant way
 
 ## Installation
-Octopus requires Python 3.5+ and pip to install.
+Octopus requires Python 3.5+ and [pip](http://pypi.python.org/pypi/pip) to install.
 
     pip install octopus
 
 [ONT albacore](https://community.nanoporetech.com/downloads) can be
-installed anytime if you want to process the raw FAST5 files with octopus.
+installed anytime if you want to process the raw FAST5 files with ``octopus``.
 
 ## Quick Start
 Produce FASTQ files with 3′ adapter sequences removed from a directory
@@ -38,7 +37,7 @@ the original FAST5 files organized separately by the barcodes.
     octopus -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --fast5
 
 In case the FAST5 files are not basecalled yet, just a switch lets
-``octopus`` call albacore internally. Multicore machines help.
+``octopus`` call ``albacore`` internally. Multicore machines help.
 
     octopus -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --fast5 --albacore-onthefly --parallel 40
 
@@ -52,4 +51,4 @@ by an option.
 DNA sequences and some explanations.
 
 ## Citation
-A pre-print is going to released soon.
+A pre-print is going to be released soon.
