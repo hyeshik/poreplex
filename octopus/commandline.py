@@ -115,14 +115,14 @@ def setup_output_name_mapping(config):
 
     return names
 
-def show_configuration(config, args, file):
+def show_configuration(config, file):
     _ = partial(print, sep='\t', file=file)
     bool2yn = lambda b: 'Yes' if b else 'No'
 
     _("== Analysis settings ======================================")
     _(" * Input:", config['inputdir'])
     _(" * Output:", config['outputdir'])
-    _(" * Processes:", args.parallel)
+    _(" * Processes:", config['parallel'])
     _(" * Presets:", config['preset_name'])
     _(" * Basecall on-the-fly:\t",
         'Yes (albacore {})'.format(config['albacore_version'])
@@ -154,6 +154,7 @@ def main(args):
     config = load_config(args)
     config['quiet'] = args.quiet
     config['interactive'] = not args.yes
+    config['parallel'] = args.parallel
     config['inputdir'] = args.input
     config['outputdir'] = args.output
     config['tmpdir'] = args.tmpdir if args.tmpdir else os.path.join(args.output, 'tmp')
@@ -164,7 +165,7 @@ def main(args):
     config['albacore_onthefly'] = args.albacore_onthefly
     config['dump_adapter_signals'] = args.dump_adapter_signals
     config['dump_basecalls'] = args.dump_basecalled_events
-    config['fast5_output'] = args.fast5
+    config['fast5_output'] = args.fast5 or args.symlink_fast5
     config['fast5_always_symlink'] = args.symlink_fast5
     config['trim_adapter'] = args.trim_adapter
     config['output_names'] = setup_output_name_mapping(config)
@@ -187,13 +188,13 @@ def main(args):
         print("\nStarted at", time.asctime(), file=cfgf)
         print("\nCommand line:", ' '.join(sys.argv) + '\n', file=cfgf)
 
-        show_configuration(config, args, file=cfgf)
+        show_configuration(config, file=cfgf)
         cfgf.flush()
 
         if not config['quiet']:
-            show_configuration(config, args, sys.stdout)
+            show_configuration(config, sys.stdout)
 
-        ProcessingSession.run(config, args)
+        ProcessingSession.run(config)
 
         print("\nFinished at", time.asctime(), file=cfgf)
 

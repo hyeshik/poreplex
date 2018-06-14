@@ -82,7 +82,7 @@ def process_batch(batchid, reads, config):
 
 class ProcessingSession:
 
-    def __init__(self, config, args):
+    def __init__(self, config):
         self.running = True
         self.scan_finished = False
         self.reads_queued = self.reads_found = 0
@@ -91,9 +91,8 @@ class ProcessingSession:
         self.jobstack = []
 
         self.config = config
-        self.args = args
 
-        self.executor_compute = ProcessPoolExecutor(args.parallel)
+        self.executor_compute = ProcessPoolExecutor(config['parallel'])
         self.executor_io = ThreadPoolExecutor(2)
 
         self.loop = self.fastq_writer = None
@@ -285,8 +284,8 @@ class ProcessingSession:
                 os.path.join(events_prefix, 'part-*.h5'))
 
     @classmethod
-    def run(kls, config, args):
-        with kls(config, args) as sess:
+    def run(kls, config):
+        with kls(config) as sess:
             print("==> Processing FAST5 files...")
             monitor_task = sess.loop.create_task(sess.monitor_progresses())
 
