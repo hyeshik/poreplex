@@ -27,7 +27,7 @@ setup(
     name='octopus',
     packages=['octopus'],
     version='0.1',
-    description='Barcode demultiplexer for nanopore direct RNA sequencing',
+    description='Squiggle-level data preprocessor for nanopore direct RNA sequencing',
     author='Hyeshik Chang',
     author_email='hyeshik@snu.ac.kr',
     url='https://github.com/hyeshik/octopus',

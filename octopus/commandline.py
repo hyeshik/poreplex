@@ -36,7 +36,7 @@ from .utils import *
 def show_banner():
     print("""
 \x1b[1mOctopus\x1b[0m version {version} by Hyeshik Chang
-- A demultiplexer for nanopore direct RNA sequencing
+- Makes nanopore direct RNA sequencing data friendlier to RNA Biology
 """.format(version=__version__))
 
 
@@ -211,7 +211,8 @@ def main(args):
 def __main__():
     parser = argparse.ArgumentParser(
         prog='octopus',
-        description='A versatile tool for processing nanopore direct RNA sequencing data')
+        description='Makes nanopore direct RNA sequencing data '
+                    'friendlier to RNA Biology')
 
     parser.add_argument('-i', '--input', required=True,
                         help='Path to the directory with the input FAST5 files.')
