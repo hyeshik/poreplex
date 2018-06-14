@@ -35,53 +35,42 @@ import os
 from scipy.signal import medfilt
 from .utils import union_intervals
 
-__all__ = ['SignalAnalyzerWorkerPersistence', 'SignalAnalyzer', 'SignalAnalysis']
+__all__ = ['SignalAnalyzer', 'SignalAnalysis']
 
 
 class PipelineHandledError(Exception):
     pass
 
 
-class SignalAnalyzerWorkerPersistence:
+def load_persistence_store(config, analyzer, storage_name='__octopus_persistence'):
+    import importlib.util as imputil, sys
 
-    PERSISTENCE_STORAGE_NAME = '__octopus_persistence'
-
-    def __init__(self, config):
-        import importlib.util as imputil, sys
-
-        if self.PERSISTENCE_STORAGE_NAME not in sys.modules:
-            self.storage = self.initialize_objects(config)
-
-            fakespec = imputil.spec_from_file_location('fake', 'fake.py')
-            persmod = imputil.module_from_spec(fakespec)
-            sys.modules[self.PERSISTENCE_STORAGE_NAME] = persmod
-            setattr(persmod, 'storage', self.storage)
-        else:
-            self.storage = sys.modules[self.PERSISTENCE_STORAGE_NAME].storage
-
-    def initialize_objects(self, config):
-        objects = {
+    if storage_name not in sys.modules:
+        storage = {
             'segmodel': load_segmentation_model(config['segmentation_model']),
             'unsplitmodel': load_segmentation_model(config['unsplit_read_detection_model']),
             'kmermodel': pd.read_table(config['kmer_model'], header=0, index_col=0),
         }
-        objects['kmersize'] = len(objects['kmermodel'].index[0])
+        storage['kmersize'] = len(storage['kmermodel'].index[0])
 
         if config['albacore_onthefly']:
             from .basecall_albacore import AlbacoreBroker
-            objects['albacore'] = AlbacoreBroker(config['albacore_configuration'],
-                                                 objects['kmersize'])
+            storage['albacore'] = AlbacoreBroker(config['albacore_configuration'],
+                                                 storage['kmersize'])
 
-        return objects
+        fakespec = imputil.spec_from_file_location('fake', 'fake.py')
+        persmod = imputil.module_from_spec(fakespec)
+        sys.modules[storage_name] = persmod
+        setattr(persmod, 'storage', storage)
+    else:
+        storage = sys.modules[storage_name].storage
 
-    def load_into_analyzer(self, analyzer):
-        o = self.storage
-        analyzer.segmodel = o['segmodel']
-        analyzer.unsplitmodel = o['unsplitmodel']
-        analyzer.kmermodel = o['kmermodel']
-        analyzer.kmersize = o['kmersize']
-        if 'albacore' in o:
-            analyzer.albacore = o['albacore']
+    analyzer.segmodel = storage['segmodel']
+    analyzer.unsplitmodel = storage['unsplitmodel']
+    analyzer.kmermodel = storage['kmermodel']
+    analyzer.kmersize = storage['kmersize']
+    if 'albacore' in storage:
+        analyzer.albacore = storage['albacore']
 
 
 class SignalAnalyzer:
@@ -95,7 +84,7 @@ class SignalAnalyzer:
     EVENT_DUMP_FIELDS = list(zip(_EVENT_DUMP_FIELD_NAMES, _EVENT_DUMP_FIELD_DTYPES))
 
     def __init__(self, config, batchid):
-        SignalAnalyzerWorkerPersistence(config).load_into_analyzer(self)
+        load_persistence_store(config, self)
 
         self.config = config
         self.inputdir = config['inputdir']
