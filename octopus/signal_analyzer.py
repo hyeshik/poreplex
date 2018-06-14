@@ -80,11 +80,7 @@ class SignalAnalyzer:
 
         if config['albacore_onthefly']:
             from .basecall_albacore import AlbacoreBroker
-            self.albacore = AlbacoreBroker(self.kmersize)
-            albacore_config = os.path.join(config['tmpdir'],
-                'albacore-configuration-' + self.workerid + '.ini')
-            self.albacore.initialize_core(albacore_config, config['flowcell'],
-                                          config['kit'])
+            self.albacore = AlbacoreBroker(config['albacore_configuration'], self.kmersize)
 
     def process(self, filename, outputprefix):
         return SignalAnalysis(filename, self).process()

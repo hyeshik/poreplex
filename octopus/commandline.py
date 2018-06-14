@@ -170,18 +170,22 @@ def main(args):
     config['trim_adapter'] = args.trim_adapter
     config['output_names'] = setup_output_name_mapping(config)
 
+    create_output_directories(args.output, config)
+
     if config['albacore_onthefly']:
+        config['albacore_configuration'] = os.path.join(
+            config['outputdir'], 'albacore-configuration.cfg')
+
         # Check the availability and version compatibility in a subprocess to
         # avoid potential conflicts between duplicated resources in the C++
         # library memory space when the workers are forked into multiple processes.
         result = sp.check_output([sys.executable, '-m',
-            'octopus.basecall_albacore', config['flowcell'], config['kit']]).decode().strip()
+            'octopus.basecall_albacore', config['albacore_configuration'],
+            config['flowcell'], config['kit']]).decode().strip()
         if result.startswith('okay'):
             config['albacore_version'] = result.split()[1]
         else:
             errx('ERROR: ' + result)
-
-    create_output_directories(args.output, config)
 
     with open(os.path.join(args.output, 'octopus.log'), 'w') as cfgf:
         print("Octopus {}".format(__version__), file=cfgf)

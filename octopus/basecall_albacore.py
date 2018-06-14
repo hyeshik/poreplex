@@ -25,13 +25,12 @@ __all__ = ['check_albacore', 'AlbacoreBroker']
 # All albacore modules are loaded from the insides of functions to enable
 # graceful detection of ImportErrors in check_albacore().
 from itertools import product
-from configparser import ConfigParser
 import pandas as pd
 import os
 
 REQUIRED_ALBACORE_VERSION = '2.3.0'
 
-def check_albacore(flowcell, kit, version_min=REQUIRED_ALBACORE_VERSION):
+def prepare_albacore(configpath, flowcell, kit, version_min=REQUIRED_ALBACORE_VERSION):
     from distutils.version import LooseVersion
     try:
         from albacore import __version__
@@ -42,14 +41,21 @@ def check_albacore(flowcell, kit, version_min=REQUIRED_ALBACORE_VERSION):
         raise Exception('Albacore {} is detected although {} is required.'.format(
             __version__, version_min))
 
+    # Generate configuration file from template
     from albacore.path_utils import get_default_path
     from albacore.config_selector import choose_config
+    from configparser import ConfigParser
 
     try:
         albacore_data_path = get_default_path('.')
-        choose_config(albacore_data_path, flowcell, kit)
+        template = choose_config(albacore_data_path, flowcell, kit)
     except:
         raise Exception('Unsupported flowcell or kit from albacore.')
+
+    config = ConfigParser(interpolation=None)
+    config.read_file(open(template[0]))
+    config['basecaller']['model_path'] = albacore_data_path
+    config.write(open(configpath, 'w'))
 
     return __version__
 
@@ -59,24 +65,15 @@ class AlbacoreBroker:
     LAYOUT_FILE = 'layout_raw_basecall_1d.jsn'
     WORKERS_SINGLE_PROCESS = 0
 
-    def __init__(self, kmer_size):
+    def __init__(self, configpath, kmer_size):
+        from albacore.pipeline_core import PipelineCore
         from albacore.path_utils import get_default_path
 
         self.albacore_data_path = get_default_path('.')
         self.descr_file = os.path.join(self.albacore_data_path, self.LAYOUT_FILE)
-        self.kmer_decode_table = list(map(''.join, product('ACGT', repeat=kmer_size)))
-
-    def initialize_core(self, configpath, flowcell, kit):
-        from albacore.config_selector import choose_config
-        from albacore.pipeline_core import PipelineCore
-
-        template = choose_config(self.albacore_data_path, flowcell, kit)
-        config = ConfigParser(interpolation=None)
-        config.read_file(open(template[0]))
-        config['basecaller']['model_path'] = self.albacore_data_path
-        config.write(open(configpath, 'w'))
-
         self.core = PipelineCore(self.descr_file, configpath, self.WORKERS_SINGLE_PROCESS)
+
+        self.kmer_decode_table = list(map(''.join, product('ACGT', repeat=kmer_size)))
 
     def adopt_basecalled_table(self, result):
         field_names = 'mean start stdv length model_state move p_model_state weights'.split()
@@ -115,7 +112,7 @@ class AlbacoreBroker:
 if __name__ == '__main__':
     import sys
     try:
-        version = check_albacore(sys.argv[1], sys.argv[2])
+        version = prepare_albacore(*sys.argv[1:])
     except Exception as exc:
         print(str(exc))
     else:
