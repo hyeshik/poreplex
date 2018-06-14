@@ -30,16 +30,58 @@ import multiprocessing as mp
 import numpy as np
 import pandas as pd
 from hashlib import sha1
-import os
 import h5py
+import os
 from scipy.signal import medfilt
 from .utils import union_intervals
 
-__all__ = ['SignalAnalyzer', 'SignalAnalysis']
+__all__ = ['SignalAnalyzerWorkerPersistence', 'SignalAnalyzer', 'SignalAnalysis']
 
 
 class PipelineHandledError(Exception):
     pass
+
+
+class SignalAnalyzerWorkerPersistence:
+
+    PERSISTENCE_STORAGE_NAME = '__octopus_persistence'
+
+    def __init__(self, config):
+        import importlib.util as imputil, sys
+
+        if self.PERSISTENCE_STORAGE_NAME not in sys.modules:
+            self.storage = self.initialize_objects(config)
+
+            fakespec = imputil.spec_from_file_location('fake', 'fake.py')
+            persmod = imputil.module_from_spec(fakespec)
+            sys.modules[self.PERSISTENCE_STORAGE_NAME] = persmod
+            setattr(persmod, 'storage', self.storage)
+        else:
+            self.storage = sys.modules[self.PERSISTENCE_STORAGE_NAME].storage
+
+    def initialize_objects(self, config):
+        objects = {
+            'segmodel': load_segmentation_model(config['segmentation_model']),
+            'unsplitmodel': load_segmentation_model(config['unsplit_read_detection_model']),
+            'kmermodel': pd.read_table(config['kmer_model'], header=0, index_col=0),
+        }
+        objects['kmersize'] = len(objects['kmermodel'].index[0])
+
+        if config['albacore_onthefly']:
+            from .basecall_albacore import AlbacoreBroker
+            objects['albacore'] = AlbacoreBroker(config['albacore_configuration'],
+                                                 objects['kmersize'])
+
+        return objects
+
+    def load_into_analyzer(self, analyzer):
+        o = self.storage
+        analyzer.segmodel = o['segmodel']
+        analyzer.unsplitmodel = o['unsplitmodel']
+        analyzer.kmermodel = o['kmermodel']
+        analyzer.kmersize = o['kmersize']
+        if 'albacore' in o:
+            analyzer.albacore = o['albacore']
 
 
 class SignalAnalyzer:
@@ -53,11 +95,9 @@ class SignalAnalyzer:
     EVENT_DUMP_FIELDS = list(zip(_EVENT_DUMP_FIELD_NAMES, _EVENT_DUMP_FIELD_DTYPES))
 
     def __init__(self, config, batchid):
+        SignalAnalyzerWorkerPersistence(config).load_into_analyzer(self)
+
         self.config = config
-        self.segmodel = load_segmentation_model(config['segmentation_model'])
-        self.unsplitmodel = load_segmentation_model(config['unsplit_read_detection_model'])
-        self.kmermodel = pd.read_table(config['kmer_model'], header=0, index_col=0)
-        self.kmersize = len(self.kmermodel.index[0])
         self.inputdir = config['inputdir']
         self.outputdir = config['outputdir']
         self.workerid = sha1(mp.current_process().name.encode()).hexdigest()[:16]
@@ -77,10 +117,6 @@ class SignalAnalyzer:
                 self.open_dump_file('events', 'basecalled_events')
         else:
             self.basecall_dump_file = self.basecall_dump_group = None
-
-        if config['albacore_onthefly']:
-            from .basecall_albacore import AlbacoreBroker
-            self.albacore = AlbacoreBroker(config['albacore_configuration'], self.kmersize)
 
     def process(self, filename, outputprefix):
         return SignalAnalysis(filename, self).process()
