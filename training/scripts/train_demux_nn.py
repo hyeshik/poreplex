@@ -59,7 +59,7 @@ class CustomModelCheckpoint(Callback):
             self.best_val_loss = logs['val_loss']
 
         if (epoch + 1) % self.period == 0:
-            modelpath = self.modelpath.format(epoch=epoch)
+            modelpath = self.periodic_output.format(epoch=epoch)
             self.model_for_saving.save_weights(modelpath, overwrite=True)
 
 

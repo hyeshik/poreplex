@@ -34,6 +34,7 @@ import h5py
 import os
 from scipy.signal import medfilt
 from .utils import union_intervals
+from .barcoding import BarcodeDemultiplexer
 
 __all__ = ['SignalAnalyzer', 'SignalAnalysis']
 
