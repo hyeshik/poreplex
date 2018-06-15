@@ -26,6 +26,7 @@ import numpy as np
 import subprocess as sp
 import tempfile
 import shutil
+import h5py
 import glob
 import sys
 import os
@@ -58,41 +59,28 @@ class TemporaryDirectory(object):
             sp.check_call(['cat'] + infiles, stdout=outfile)
 
 
-def summarize_signal_array(signal, winsize):
-    wingrp0 = signal.reshape((signal.shape[0] // winsize, winsize))
-    stepsize = winsize // 2
-    wingrp1 = signal[stepsize:-stepsize].reshape((signal.shape[0] // winsize - 1, winsize))
-
-    mean0 = wingrp0.mean(axis=1); mean1 = wingrp1.mean(axis=1)
-    std0 = wingrp0.std(axis=1);   std1 = wingrp1.std(axis=1)
-
-    mean = np.vstack([mean0, np.pad(mean1, (0, 1), 'constant')]).T.ravel()[:-1]
-    std = np.vstack([std0, np.pad(std1, (0, 1), 'constant')]).T.ravel()[:-1]
-
-    return np.vstack([mean, std]).T
-
-
-def process(signal_prefix, signal_trim_length, window_size, output_path, inpfiles):
-    with open(output_path, 'wb') as arrayout:
+def process(signal_file, signal_trim_length, output_path, read_ids):
+    with h5py.File(signal_file, 'r') as h5, open(output_path, 'wb') as arrayout:
         sigbuf = []
+        siggroup = h5['adapter']
 
-        for filename in inpfiles:
-            signal = np.load(os.path.join(signal_prefix, filename))
+        for read_id in read_ids:
+            signal = siggroup['{}/{}'.format(read_id[:3], read_id)][:]
             if len(signal) < signal_trim_length:
                 signal = np.pad(signal,
                     (signal_trim_length - len(signal), 0), 'constant')
             elif len(signal) > signal_trim_length:
                 signal = signal[-signal_trim_length:]
 
-            sigbuf.append(summarize_signal_array(signal, window_size).astype(OUTPUT_DTYPE))
+            sigbuf.append(signal.astype(OUTPUT_DTYPE))
 
         np.array(sigbuf).tofile(arrayout)
 
-    return len(inpfiles)
+    return len(read_ids)
 
 
-def main(signal_prefix, signal_trim_length, window_size,
-         catalog_input, output_file, parallel=8, chunk_size=2000):
+def main(signal_file, signal_trim_length, catalog_input, output_file,
+         parallel=8, chunk_size=2000):
 
     selreads = pd.read_table(catalog_input)
 
@@ -102,9 +90,9 @@ def main(signal_prefix, signal_trim_length, window_size,
         jobs = []
         jobbases = np.arange(int(np.ceil(len(selreads) / chunk_size))) * chunk_size
         for jobbase in jobbases:
-            job = executor.submit(process, signal_prefix, signal_trim_length,
-                            window_size, '{}/part{:012d}'.format(tmpdir, jobbase),
-                            selreads['signal_file'].iloc[jobbase:jobbase+chunk_size].tolist())
+            job = executor.submit(process, signal_file, signal_trim_length,
+                            '{}/part{:012d}'.format(tmpdir, jobbase),
+                            selreads['read_id'].iloc[jobbase:jobbase+chunk_size].tolist())
             jobs.append(job)
 
         done = 0
@@ -118,26 +106,26 @@ def main(signal_prefix, signal_trim_length, window_size,
         tmpdir.merge_into_file(open('{}/merged'.format(tmpdir), 'wb'))
 
         print('\nConverting...')
-        elementsize = signal_trim_length * 2 // window_size - 1
+        elementsize = signal_trim_length
         arr = np.frombuffer(open('{}/merged'.format(tmpdir), 'rb').read(),
                             dtype=OUTPUT_DTYPE)
-        arr = arr.reshape((len(arr) // (elementsize * 2), elementsize, 2))
+        arr = arr.reshape(len(arr) // elementsize, elementsize)
         np.save(output_file, arr)
 
 
 if __name__ == '__main__':
-#    (signal_prefix, signal_trim_length, window_size, catalog_input,
+#    (signal_file, signal_trim_length, catalog_input,
 #     output_file, num_parallel) = (
-#     '../signal-cuts', 15000, 20, '../tables/selected-signal-matches-MXG3.1.txt',
+#     '../MXG3.1/adapter-dumps/inventory.h5', 350,
+#     '../tables/selected-signal-matches-MXG3.1.txt',
 #     'tr.npy', 8)
-#
-    (signal_prefix, signal_trim_length, window_size, catalog_input,
+
+    (signal_file, signal_trim_length, catalog_input,
      output_file, num_parallel) = sys.argv[1:]
 
     signal_trim_length = int(signal_trim_length)
-    window_size = int(window_size)
     num_parallel = int(num_parallel)
 
-    main(signal_prefix, signal_trim_length, window_size, catalog_input, output_file,
+    main(signal_file, signal_trim_length, catalog_input, output_file,
          num_parallel)
 

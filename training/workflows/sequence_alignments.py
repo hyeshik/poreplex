@@ -1,9 +1,3 @@
-rule generate_fasta:
-    input: '{name}/sequences.fasta.gz'
-    output: 'sequences/{name}.fa.gz'
-    threads: 2
-    shell: 'zcat {input} | tr U T | gzip -c - > {output}'
-
 rule make_minimap2_index:
     input: 'refs/{name}.fa.gz'
     output: 'refs/{name}.mmidx'

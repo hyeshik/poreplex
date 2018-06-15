@@ -29,10 +29,9 @@ import sys
 import glob
 
 def load_catalog(datadir, runname):
-    summary = pd.read_table(os.path.join(datadir, 'sequencing_summary.txt.gz'),
-                            compression='gzip', low_memory=False)
+    summary = pd.read_table(os.path.join(datadir, 'sequencing_summary.txt'),
+                            low_memory=False)
 
-    summary['is_muxscan'] = summary['filename'].fillna('').apply(lambda x: 'mux_scan' in x)
     summary['run_name'] = runname
     return summary
 
@@ -52,8 +51,6 @@ def process_all(allrundirs):
         by=['run_name', 'start_time', 'channel']).reset_index(drop=True)
     print('({:,} reads total)'.format(len(allcats)))
 
-    allcats['is_muxscan'] = allcats['is_muxscan'].astype(np.int8)
-    allcats['read_no'] = allcats['read_no'].astype(np.int32)
     feather.write_dataframe(allcats, 'sequencing_summary.feather')
 
     print('Done.')

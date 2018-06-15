@@ -20,7 +20,7 @@ rule all:
                         for psetname in config['training_parameters']
                         if psetname != 'global'])
 
-include: 'workflows/basecalling.py'
+include: 'workflows/preprocessing.py'
 include: 'workflows/prepare_references.py'
 include: 'workflows/sequence_alignments.py'
 include: 'workflows/training_data_preparation.py'

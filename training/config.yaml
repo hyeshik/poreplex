@@ -18,14 +18,11 @@ train_data_selection:
   min_adapter_length: 4000
   max_adapter_length: 30000
   min_sequence_length: 200
-adapter_signal_data:
-  MXG3.1: /casa/hyeshik/p/nara/octopus/training/signal-cuts
 train_data_transform:
-  trim_adapter_length: 15000
-  summarization_window_size: 20
+  trim_adapter_length: 350
   test_data_split: 0.2
   subsample_sizes: [2000, 10000, 20000, 50000, 9999999]
-  final_trim_sizes: [500, 750, 1000, 1200, 1499]
+  final_trim_sizes: [100, 200, 300, 350]
 training_parameters:
   global:
     ngpu: 2
