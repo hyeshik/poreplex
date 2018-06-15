@@ -24,7 +24,7 @@
 import h5py
 from keras.layers import Dense, Dropout, GRU, LSTM
 from keras.models import Sequential
-from keras.callbacks import Callback, EarlyStopping
+from keras.callbacks import Callback, EarlyStopping, CSVLogger, ModelCheckpoint
 from keras.utils.training_utils import multi_gpu_model
 import tensorflow as tf
 import shutil
@@ -37,20 +37,27 @@ import os
 
 class CustomModelCheckpoint(Callback):
 
-    def __init__(self, model, modelpath, logpath, period=10):
+    def __init__(self, model, periodic, besttraining, bestvalidation, period=10):
         super().__init__()
-        self.modelpath = modelpath
         self.model_for_saving = model
+        self.periodic_output = periodic
+        self.besttraining_output = besttraining
+        self.bestvalidation_output = bestvalidation
         self.period = period
-        self.logfile = open(logpath, 'w')
+
+        self.best_loss = self.best_val_loss = None
 
     def on_epoch_end(self, epoch, logs=None):
-        loss = logs['val_loss']
-        accuracy = logs['acc']
+        if self.best_loss is None or logs['loss'] < self.best_loss:
+            print('Saving the models with the best training loss...')
+            self.model_for_saving.save_weights(self.besttraining_output, overwrite=True)
+            self.best_loss = logs['loss']
 
-        print(time(), epoch, logs['loss'], logs['acc'],
-              logs['val_loss'], logs['val_acc'], sep='\t', file=self.logfile)
-        self.logfile.flush()
+        if self.best_val_loss is None or logs['val_loss'] < self.best_val_loss:
+            print('Saving the models with the best validation loss...')
+            self.model_for_saving.save_weights(self.bestvalidation_output, overwrite=True)
+            self.best_val_loss = logs['val_loss']
+
         if (epoch + 1) % self.period == 0:
             modelpath = self.modelpath.format(epoch=epoch)
             self.model_for_saving.save_weights(modelpath, overwrite=True)
@@ -116,25 +123,31 @@ def create_model(params, layerdef, input_shape, num_classes):
     return model, pmodel
 
 def train_model(model, pmodel, global_params, training_data, output_dir):
-    modelcheckpoint = CustomModelCheckpoint(model,
-        output_dir + '/checkpoints-epoch{epoch:03d}.hdf5',
-        output_dir + '/training-log.txt',
-        global_params['model_checkpoint_period'])
-    earlystopping = EarlyStopping(monitor='val_loss',
-        min_delta=global_params['earlystopping_min_delta'],
-        patience=global_params['earlystopping_patience'],
-        verbose=1)
+    callbacks = [
+        # Checkpoint saver
+        CustomModelCheckpoint(model,
+            periodic=output_dir + '/checkpoints-epoch{epoch:03d}.hdf5',
+            besttraining=output_dir + '/bestmodel-training.hdf5',
+            bestvalidation=output_dir + '/bestmodel-validation.hdf5',
+            period=global_params['model_checkpoint_period']),
+        # Logging
+        CSVLogger(output_dir + '/training-log.csv'),
+        # Early stop at stalled learning
+        EarlyStopping(monitor='val_loss',
+            min_delta=global_params['earlystopping_min_delta'],
+            patience=global_params['earlystopping_patience'],
+            verbose=1)
+    ]
 
     hist = pmodel.fit(training_data['signals'],
                       training_data['onehot'],
                       batch_size=global_params['batchsize_train'],
                       epochs=global_params['epochs'],
                       validation_split=global_params['validation_split'],
-                      verbose=1,
-                      callbacks=[modelcheckpoint, earlystopping],
+                      verbose=1, callbacks=callbacks,
                       class_weight=training_data['weights'])
 
-    model.save(output_dir + '/model.hdf5')
+    model.save(output_dir + '/final-model.hdf5')
 
 
 def evaluate_model(pmodel, global_params, testdata, output_dir):

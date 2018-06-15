@@ -28,9 +28,9 @@ training_parameters:
     ngpu: 2
     epochs: 100
     validation_split: 0.1
-    batchsize_train: 512
-    batchsize_eval: 64
-    batchsize_test: 64
+    batchsize_train: 1024
+    batchsize_eval: 128
+    batchsize_test: 512
     optimizer: adam
     model_checkpoint_period: 1
     earlystopping_min_delta: 0.001
@@ -42,6 +42,11 @@ training_parameters:
     - [Dropout, 0.5]
   GRU_128_128_03:
     - [GRU, 128]
+    - [Dropout, 0.3]
+    - [GRU, 128]
+    - [Dropout, 0.3]
+  GRU_256_128_03:
+    - [GRU, 256]
     - [Dropout, 0.3]
     - [GRU, 128]
     - [Dropout, 0.3]
