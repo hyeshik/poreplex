@@ -74,7 +74,13 @@ def process_file(inputfile, outputprefix, analyzer):
 def process_batch(batchid, reads, config):
     try:
         with SignalAnalyzer(config, batchid) as analyzer:
-            return [process_file(f5file, 'x', analyzer) for f5file in reads]
+            results = [process_file(f5file, 'x', analyzer) for f5file in reads]
+            if config['barcoding']:
+                barcode_assg = analyzer.predict_barcode_labels()
+                for res in results:
+                    if res['read_id'] in barcode_assg:
+                        res['label'] = barcode_assg[res['read_id']]
+            return results
     except Exception as exc:
         import traceback
         traceback.print_exc()
@@ -101,7 +107,8 @@ class ProcessingSession:
     def __enter__(self):
         self.fastq_writer = FASTQWriter(self.config['outputdir'],
                                         self.config['output_names'])
-        self.seqsummary_writer = SequencingSummaryWriter(self.config['outputdir'])
+        self.seqsummary_writer = SequencingSummaryWriter(self.config['outputdir'],
+                                                         self.config['output_names'])
 
         self.loop = asyncio.get_event_loop()
         self.executor_compute.__enter__()
@@ -168,11 +175,13 @@ class ProcessingSession:
         indir = self.config['inputdir']
         outdir = self.config['outputdir']
         symlinkfirst = self.config['fast5_always_symlink']
+        labelmap = self.config['output_names']
         blacklist_hardlinks = set()
 
         for entry in results:
             original_fast5 = os.path.join(indir, entry['filename'])
-            link_path = os.path.join(outdir, 'fast5', entry['label'], entry['filename'])
+            link_path = os.path.join(outdir, 'fast5', labelmap[entry['label']],
+                                     entry['filename'])
 
             original_dir = os.path.dirname(original_fast5)
             link_dir = os.path.dirname(link_path)

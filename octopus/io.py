@@ -62,8 +62,9 @@ class SequencingSummaryWriter:
         'sample_id', 'status', 'label',
     ]
 
-    def __init__(self, outputdir):
+    def __init__(self, outputdir, labelmapping):
         self.file = open(os.path.join(outputdir, 'sequencing_summary.txt'), 'w')
+        self.labelmapping = labelmapping
         print(*self.SUMMARY_OUTPUT_FIELDS, sep='\t', file=self.file)
 
     def close(self):
@@ -71,7 +72,9 @@ class SequencingSummaryWriter:
 
     def write_results(self, results):
         for entry in results:
-            print(*[entry[f] for f in self.SUMMARY_OUTPUT_FIELDS],
+            print(*[self.labelmapping.get(entry[f], entry[f])
+                    if f == 'label' else entry[f]
+                    for f in self.SUMMARY_OUTPUT_FIELDS],
                   file=self.file, sep='\t')
 
 

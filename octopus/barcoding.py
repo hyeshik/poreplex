@@ -42,7 +42,7 @@ finally:
 class BarcodeDemultiplexer:
 
     def __init__(self, config):
-        self.config = config['demultiplexing']
+        self.config = config
         self.model = self.load_model()
         self.unclassified_fallback = 'pass' # label for undetermined reads
         self.signals = []
@@ -87,7 +87,7 @@ class BarcodeDemultiplexer:
 
         del self.signals[:]
         del self.signal_readids[:]
-        ret, self.results = self.results, []
+        ret, self.results = self.results, {}
         return ret
 
 if __name__ == '__main__':

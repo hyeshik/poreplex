@@ -34,7 +34,6 @@ import h5py
 import os
 from scipy.signal import medfilt
 from .utils import union_intervals
-from .barcoding import BarcodeDemultiplexer
 
 __all__ = ['SignalAnalyzer', 'SignalAnalysis']
 
@@ -54,6 +53,10 @@ def load_persistence_store(config, analyzer, storage_name='__octopus_persistence
         }
         storage['kmersize'] = len(storage['kmermodel'].index[0])
 
+        if config['barcoding']:
+            from .barcoding import BarcodeDemultiplexer
+            storage['demuxer'] = BarcodeDemultiplexer(config['demultiplexing'])
+
         if config['albacore_onthefly']:
             from .basecall_albacore import AlbacoreBroker
             storage['albacore'] = AlbacoreBroker(config['albacore_configuration'],
@@ -70,6 +73,8 @@ def load_persistence_store(config, analyzer, storage_name='__octopus_persistence
     analyzer.unsplitmodel = storage['unsplitmodel']
     analyzer.kmermodel = storage['kmermodel']
     analyzer.kmersize = storage['kmersize']
+    if 'demuxer' in storage:
+        analyzer.demuxer = storage['demuxer']
     if 'albacore' in storage:
         analyzer.albacore = storage['albacore']
 
@@ -131,6 +136,9 @@ class SignalAnalyzer:
         except RuntimeError:
             if read_id not in self.basecall_dump_group:
                 raise
+
+    def predict_barcode_labels(self):
+        return self.demuxer.predict()
 
     def __enter__(self):
         return self
@@ -385,6 +393,12 @@ class SignalAnalysis:
                 self.sequence[0][:-adapter_basecall_length],
                 self.sequence[1][:-adapter_basecall_length])
 
+    def push_barcode_signal(self, events, segments):
+        adapter_events = events.iloc[slice(*segments['adapter'])]
+        if len(adapter_events) > 0:
+            signal = adapter_events['scaled_mean'].as_matrix()
+            self.analyzer.demuxer.push(self.metainfo['read_id'], signal)
+
     def process(self):
         error_set = 'okay'
 
@@ -406,10 +420,9 @@ class SignalAnalysis:
                 if isunsplit_read:
                     raise PipelineHandledError('unsplit_read')
 
+            outname = 'pass'
             if self.config['barcoding']:
-                raise NotImplementedError
-            else:
-                outname = 'pass'
+                self.push_barcode_signal(events, segments)
 
         except PipelineHandledError as exc:
             outname = 'artifact' if exc.args[0] in ('unsplit_read',) else 'fail'

@@ -101,14 +101,12 @@ def create_output_directories(outputdir, config):
 
 
 def setup_output_name_mapping(config):
-    names = {'fail': OUTPUT_NAME_FAILED}
+    names = {'fail': OUTPUT_NAME_FAILED, 'pass': OUTPUT_NAME_PASSED}
 
     if config['barcoding']:
         num_barcodes = config['demultiplexing']['number_of_barcodes']
-        for i in range(self.num_barcodes):
-            names[i] = OUTPUT_NAME_BARCODES.format(i + 1)
-    else:
-        names['pass'] = OUTPUT_NAME_PASSED
+        for i in range(num_barcodes):
+            names[i] = OUTPUT_NAME_BARCODES.format(n=i + 1)
 
     if config['filter_unsplit_reads']:
         names['artifact'] = OUTPUT_NAME_ARTIFACT
