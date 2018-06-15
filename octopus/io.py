@@ -59,7 +59,7 @@ class SequencingSummaryWriter:
     SUMMARY_OUTPUT_FIELDS = [
         'filename', 'read_id', 'run_id', 'channel', 'start_time',
         'duration', 'num_events', 'sequence_length', 'mean_qscore',
-        'sample_id', 'error', 'label',
+        'sample_id', 'status', 'label',
     ]
 
     def __init__(self, outputdir):

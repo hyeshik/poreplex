@@ -418,7 +418,7 @@ class SignalAnalysis:
                 self.dump_adapter_signal(events, segments)
 
         self.metainfo.update({
-            'error': error_set,
+            'status': error_set,
             'label': outname,
             'fastq': self.sequence,
         })
