@@ -49,12 +49,10 @@ class CustomModelCheckpoint(Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         if self.best_loss is None or logs['loss'] < self.best_loss:
-            print('Saving the models with the best training loss...')
             self.model_for_saving.save_weights(self.besttraining_output, overwrite=True)
             self.best_loss = logs['loss']
 
         if self.best_val_loss is None or logs['val_loss'] < self.best_val_loss:
-            print('Saving the models with the best validation loss...')
             self.model_for_saving.save_weights(self.bestvalidation_output, overwrite=True)
             self.best_val_loss = logs['val_loss']
 
