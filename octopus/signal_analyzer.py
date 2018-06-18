@@ -114,7 +114,14 @@ class SignalAnalyzer:
             self.basecall_dump_file = self.basecall_dump_group = None
 
     def process(self, filename, outputprefix):
-        return SignalAnalysis(filename, self).process()
+        try:
+            return SignalAnalysis(filename, self).process()
+        except Exception as exc:
+            return {
+                'filename': filename,
+                'status': 'unknown_error',
+                'error_message': '{}: {}'.format(type(exc).__name__, str(exc))
+            }
 
     def open_dump_file(self, subdir, parentgroup):
         h5filename = os.path.join(self.outputdir, subdir,

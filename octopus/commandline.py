@@ -118,7 +118,9 @@ def show_configuration(config, file):
     bool2yn = lambda b: 'Yes' if b else 'No'
 
     _("== Analysis settings ======================================")
-    _(" * Input:", config['inputdir'])
+    _(" * Input:", config['inputdir'],
+      '(live, {} sec delay)'.format(config['analysis_start_delay'])
+      if config['live'] else '')
     _(" * Output:", config['outputdir'])
     _(" * Processes:", config['parallel'])
     _(" * Presets:", config['preset_name'])
@@ -135,6 +137,34 @@ def show_configuration(config, file):
     if config['dump_adapter_signals']:
         _(" * Dump adapter signals for training:", "Yes")
     _("===========================================================\n")
+
+def test_optional_features(config):
+    if config['albacore_onthefly']:
+        config['albacore_configuration'] = os.path.join(
+            config['outputdir'], 'albacore-configuration.cfg')
+
+        # Check the availability and version compatibility in a subprocess to
+        # avoid potential conflicts between duplicated resources in the C++
+        # library memory space when the workers are forked into multiple processes.
+        result = sp.check_output([sys.executable, '-m',
+            'octopus.basecall_albacore', config['albacore_configuration'],
+            config['flowcell'], config['kit']]).decode().strip()
+        if result.startswith('okay'):
+            config['albacore_version'] = result.split()[1]
+        else:
+            errx('ERROR: ' + result)
+
+    if config['barcoding']:
+        try:
+            from .barcoding import BarcodeDemultiplexer
+        except:
+            errx("ERROR: Barcoding support (--barcoding) requires keras and tensorflow.")
+
+    if config['live']:
+        try:
+            from inotify.adapters import InotifyTree
+        except:
+            errx("ERROR: Live monitoring (--live) requires the inotify module.")
 
 def main(args):
     if not args.quiet:
@@ -155,6 +185,8 @@ def main(args):
     config['parallel'] = args.parallel
     config['inputdir'] = args.input
     config['outputdir'] = args.output
+    config['live'] = args.live
+    config['analysis_start_delay'] = args.live_analysis_delay if args.live else 0
     config['tmpdir'] = args.tmpdir if args.tmpdir else os.path.join(args.output, 'tmp')
     config['cleanup_tmpdir'] = False # will be changed during creation of output dirs
     config['barcoding'] = args.barcoding
@@ -169,21 +201,7 @@ def main(args):
     config['output_names'] = setup_output_name_mapping(config)
 
     create_output_directories(args.output, config)
-
-    if config['albacore_onthefly']:
-        config['albacore_configuration'] = os.path.join(
-            config['outputdir'], 'albacore-configuration.cfg')
-
-        # Check the availability and version compatibility in a subprocess to
-        # avoid potential conflicts between duplicated resources in the C++
-        # library memory space when the workers are forked into multiple processes.
-        result = sp.check_output([sys.executable, '-m',
-            'octopus.basecall_albacore', config['albacore_configuration'],
-            config['flowcell'], config['kit']]).decode().strip()
-        if result.startswith('okay'):
-            config['albacore_version'] = result.split()[1]
-        else:
-            errx('ERROR: ' + result)
+    test_optional_features(config)
 
     with open(os.path.join(args.output, 'octopus.log'), 'w') as cfgf:
         print("Octopus {}".format(__version__), file=cfgf)
@@ -222,8 +240,10 @@ def __main__():
                         help='Number of files in a single batch (default: 128)')
     parser.add_argument('-c', '--config', default='',
                         help='Path to signal processing configuration.')
+    parser.add_argument('--live', default=False, action='store_true',
+                        help='Monitor new files in the input directory')
     parser.add_argument('--albacore-onthefly', default=False, action='store_true',
-                        help='Call the ONT albacore for basecalling on-the-fly.')
+                        help='Call the ONT albacore for basecalling on-the-fly')
     parser.add_argument('--barcoding', default=False, action='store_true',
                         help='Sort barcoded reads into separate outputs.')
     parser.add_argument('--trim-adapter', default=False, action='store_true',
@@ -234,13 +254,16 @@ def __main__():
                         help='Dump adapter signal dumps for training')
     parser.add_argument('--dump-basecalled-events', default=False, action='store_true',
                         help='Dump basecalled events to the output')
-    parser.add_argument('-5', '--fast5', default=False, action='store_true',
+    parser.add_argument('--fast5', default=False, action='store_true',
                         help='Link or copy FAST5 files to separate output directories.')
     parser.add_argument('--symlink-fast5', default=False, action='store_true',
                         help='Create symbolic links to FAST5 files in output directories '
                              'even when hard linking is possible.')
     parser.add_argument('--tmpdir', default='', type=str,
                         help='Temporary directory for intermediate data.')
+    parser.add_argument('--live-analysis-delay', default=60, type=int,
+                        help='Time in seconds to delay the start of analysis in live mode '
+                             '(default: 60)')
     parser.add_argument('-q', '--quiet', default=False, action='store_true',
                         help='Suppress non-error messages.')
     parser.add_argument('-y', '--yes', default=False, action='store_true',
