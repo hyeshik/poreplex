@@ -71,19 +71,28 @@ def show_memory_usage():
     print('{:05d} MEMORY total={} RSS={} shared={} data={}'.format(
             batchid, usages[0], usages[1], usages[2], usages[4]))
 
-def process_file(inputfile, outputprefix, analyzer):
-    result = analyzer.process(inputfile, outputprefix)
+def process_file(inputfile, analyzer):
+    result = analyzer.process(inputfile)
     return result
 
 def process_batch(batchid, reads, config):
     try:
+        inputdir = config['inputdir']
         with SignalAnalyzer(config, batchid) as analyzer:
-            results = [process_file(f5file, 'x', analyzer) for f5file in reads]
+            results = []
+            for f5file in reads:
+                if os.path.exists(os.path.join(inputdir, f5file)):
+                    results.append(process_file(f5file, analyzer))
+                else:
+                    results.append({'filename': f5file,
+                                    'status': 'disappeared'})
+
             if config['barcoding']:
                 barcode_assg = analyzer.predict_barcode_labels()
                 for res in results:
                     if res['read_id'] in barcode_assg:
                         res['label'] = barcode_assg[res['read_id']]
+
             return results
     except Exception as exc:
         import traceback
@@ -220,6 +229,9 @@ class ProcessingSession:
         blacklist_hardlinks = set()
 
         for entry in results:
+            if 'label' not in entry: # Error before opening the FAST5
+                continue
+
             original_fast5 = os.path.join(indir, entry['filename'])
             link_path = os.path.join(outdir, 'fast5', labelmap[entry['label']],
                                      entry['filename'])

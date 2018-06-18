@@ -113,7 +113,7 @@ class SignalAnalyzer:
         else:
             self.basecall_dump_file = self.basecall_dump_group = None
 
-    def process(self, filename, outputprefix):
+    def process(self, filename):
         try:
             return SignalAnalysis(filename, self).process()
         except Exception as exc:

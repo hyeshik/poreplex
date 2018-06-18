@@ -49,7 +49,7 @@ class FASTQWriter:
 
     def write_sequences(self, procresult):
         for entry in procresult:
-            if entry['fastq'] is not None:
+            if entry.get('fastq') is not None:
                 formatted = ''.join('@{}\n{}\n+\n{}\n'.format(entry['read_id'], *entry['fastq']))
                 self.streams[entry['label']].write(formatted.encode('ascii'))
 
@@ -72,10 +72,11 @@ class SequencingSummaryWriter:
 
     def write_results(self, results):
         for entry in results:
-            print(*[self.labelmapping.get(entry[f], entry[f])
-                    if f == 'label' else entry[f]
-                    for f in self.SUMMARY_OUTPUT_FIELDS],
-                  file=self.file, sep='\t')
+            if 'label' in entry:
+                print(*[self.labelmapping.get(entry[f], entry[f])
+                        if f == 'label' else entry[f]
+                        for f in self.SUMMARY_OUTPUT_FIELDS],
+                      file=self.file, sep='\t')
 
 
 def create_links_rebalanced(desth5, group, infiles):
