@@ -23,6 +23,9 @@
 
 from setuptools import setup
 
+extra_dependencies_barcoding = ['tensorflow >= 1.8.0', 'Keras >= 2.1.6']
+extra_dependencies_live = ['inotify >= 0.2.9']
+
 setup(
     name='octopus',
     packages=['octopus'],
@@ -61,6 +64,11 @@ setup(
         'pysam >= 0.14.0',
         'progressbar2 >= 3.37.0',
     ],
+    extras_require={
+        'barcoding': extra_dependencies_barcoding,
+        'live': extra_dependencies_live,
+        'full': extra_dependencies_live + extra_dependencies_barcoding,
+    }
     entry_points={
         'console_scripts': [
             'octopus = octopus.commandline:__main__'
