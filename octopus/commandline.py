@@ -214,7 +214,12 @@ def main(args):
         if not config['quiet']:
             show_configuration(config, sys.stdout)
 
-        ProcessingSession.run(config)
+        procresult = ProcessingSession.run(config)
+
+        if procresult is not None:
+            if not config['quiet']:
+                procresult(sys.stdout)
+            procresult(cfgf)
 
         print("\nFinished at", time.asctime(), file=cfgf)
 

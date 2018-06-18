@@ -32,8 +32,8 @@ from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
 from . import *
 from .io import (
-    FASTQWriter, SequencingSummaryWriter, create_adapter_dumps_inventory,
-    create_events_inventory)
+    FASTQWriter, SequencingSummaryWriter, FinalSummaryTracker,
+    create_adapter_dumps_inventory, create_events_inventory)
 from .signal_analyzer import SignalAnalyzer
 from .utils import *
 
@@ -127,6 +127,7 @@ class ProcessingSession:
                                         self.config['output_names'])
         self.seqsummary_writer = SequencingSummaryWriter(self.config['outputdir'],
                                                          self.config['output_names'])
+        self.finalsummary_tracker = FinalSummaryTracker(self.config['output_names'])
 
         self.loop = asyncio.get_event_loop()
         self.executor_compute.__enter__()
@@ -212,6 +213,8 @@ class ProcessingSession:
                     await self.run_in_executor_io(self.link_fast5, nd_results)
 
                 await self.run_in_executor_io(self.seqsummary_writer.write_results, nd_results)
+
+                self.finalsummary_tracker.feed_results(nd_results)
 
         except CancelledError:
             return
@@ -487,5 +490,6 @@ class ProcessingSession:
                 if sess.reads_found == sess.reads_processed:
                     sess.finalize_results()
                     sess.show_message('==> Finished.')
+                    return sess.finalsummary_tracker.print_results
                 else:
                     sess.show_message('==> Terminated.')

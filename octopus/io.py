@@ -22,6 +22,8 @@
 
 from pysam import BGZFile
 from glob import glob
+from functools import partial
+from collections import defaultdict
 import h5py
 import numpy as np
 import os
@@ -78,6 +80,67 @@ class SequencingSummaryWriter:
                         for f in self.SUMMARY_OUTPUT_FIELDS],
                       file=self.file, sep='\t')
 
+
+class FinalSummaryTracker:
+
+    REPORTING_ORDER = ['pass', 'artifact', 'fail', 'file_error']
+    FRIENDLY_LABELS = {
+        0: 'Barcoded sample 1 (BC1)',
+        1: 'Barcoded sample 2 (BC2)',
+        2: 'Barcoded sample 3 (BC3)',
+        3: 'Barcoded sample 4 (BC4)',
+        'pass': 'Successfully processed',
+        'fail': 'Processing failed',
+        'artifact': 'Possibly artifact',
+        'file_error': 'Failed to open',
+    }
+    PASS_LABEL_WITH_BARCODES = 'Barcode undetermined'
+    FRIENDLY_STATUS = {
+        'fail': {
+            'adapter_not_detected': "3' Adapter could not be located",
+            'not_basecalled': 'No albacore basecall data found',
+            'too_few_events': 'Signal is too short',
+        },
+        'artifact': {
+            'unsplit_read': 'Two or more separate molecules found in a read',
+        },
+        'file_error': {
+            'disappeared': 'File is moved to other location',
+            'unknown_error': 'File could not be opened due to unknown error',
+        },
+    }
+
+    def __init__(self, labelmapping):
+        self.labelmapping = labelmapping
+        self.counts = defaultdict(int)
+
+        barcodenums = [k for k in self.labelmapping.keys() if not isinstance(k, str)]
+        self.reporting_order = (
+            sorted(barcodenums) + self.REPORTING_ORDER
+            if barcodenums else self.REPORTING_ORDER)
+
+        if barcodenums:
+            self.FRIENDLY_LABELS['pass'] = self.PASS_LABEL_WITH_BARCODES
+
+    def feed_results(self, results):
+        for entry in results:
+            self.counts[entry.get('label', 'file_error'), entry['status']] += 1
+
+    def print_results(self, file):
+        _ = partial(print, sep='\t', file=file)
+
+        _("\n== Result Summary ==")
+        for label in self.reporting_order:
+            matching_subcounts = {s: cnt for (l, s), cnt in self.counts.items() if l == label}
+            subtotal = sum(matching_subcounts.values())
+
+            friendlylabel = self.FRIENDLY_LABELS[label]
+            _(" * {}:{}".format(friendlylabel, '\t' if len(friendlylabel) < 20 else ''), subtotal)
+            if label in self.FRIENDLY_STATUS:
+                for status, cnt in matching_subcounts.items():
+                    _("    - {}:".format(self.FRIENDLY_STATUS[label][status]), cnt)
+
+        _('')
 
 def create_links_rebalanced(desth5, group, infiles):
     desth5.require_group(group)
