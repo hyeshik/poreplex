@@ -138,6 +138,20 @@ def show_configuration(config, file):
         _(" * Dump adapter signals for training:", "Yes")
     _("===========================================================\n")
 
+def test_prerequisite_compatibility(config):
+    from distutils.version import LooseVersion
+    from pomegranate import __version__ as pomegranate_version
+    if LooseVersion(pomegranate_version) <= LooseVersion('0.9.0'):
+        errprint('''
+WARNING: You have pomegranate {} installed, which has a known
+problem that the memory consumption indefinitely grow. The processing
+may stop after processing few thousands of reads due to the out of memory
+(OOM) errors. Use this command to install until the new release comes out
+with the fix:
+
+  pip install cython
+  pip install git+https://github.com/jmschrei/pomegranate.git\n'''.format(pomegranate_version))
+
 def test_optional_features(config):
     if config['albacore_onthefly']:
         config['albacore_configuration'] = os.path.join(
@@ -201,6 +215,7 @@ def main(args):
     config['output_names'] = setup_output_name_mapping(config)
 
     create_output_directories(args.output, config)
+    test_prerequisite_compatibility(config)
     test_optional_features(config)
 
     with open(os.path.join(args.output, 'octopus.log'), 'w') as cfgf:
