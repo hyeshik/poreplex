@@ -68,7 +68,7 @@ setup(
         'barcoding': extra_dependencies_barcoding,
         'live': extra_dependencies_live,
         'full': extra_dependencies_live + extra_dependencies_barcoding,
-    }
+    },
     entry_points={
         'console_scripts': [
             'octopus = octopus.commandline:__main__'
