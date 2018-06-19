@@ -35,6 +35,7 @@ setup(
     author_email='hyeshik@snu.ac.kr',
     url='https://github.com/hyeshik/octopus',
     download_url='https://github.com/hyeshik/octopus/archive/octopus-0.1.tar.gz',
+    include_package_data=True,
     keywords=[
         'nanopore',
         'direct RNA sequencing',

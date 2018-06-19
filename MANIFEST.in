@@ -1,0 +1,7 @@
+include README.md
+include LICENSE
+include octopus/kmer_models/COPYRIGHT
+include octopus/kmer_models/*.md
+include octopus/kmer_models/*RNA/*.model
+include octopus/presets/*.cfg
+include octoups/presets/*/*.hdf5
