@@ -62,7 +62,7 @@ setup(
         'pandas >= 0.22.0',
         'scipy >= 1.0',
         'pysam >= 0.14.0',
-        'progressbar2 >= 3.37.0',
+        'progressbar33 >= 2.4',
     ],
     extras_require={
         'barcoding': extra_dependencies_barcoding,

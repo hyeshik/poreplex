@@ -27,7 +27,6 @@ import sys
 import os
 from errno import EXDEV
 from itertools import cycle
-from progressbar import ProgressBar, NullBar, UnknownLength
 from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
 from . import *
@@ -354,19 +353,38 @@ class ProcessingSession:
             pass
 
     async def monitor_progresses(self):
-        pbarclass = NullBar if self.config['quiet'] else ProgressBar
-        self.pbar = pbarclass(max_value=UnknownLength, initial_value=0)
-        self.pbar.start()
-        pbar_growing = True
+        showprogress = not self.config['quiet']
+
+        if showprogress:
+            from progressbar import ProgressBar, widgets
+
+            barformat_notfinalized = [
+                widgets.AnimatedMarker(), ' ', widgets.Counter(), ' ',
+                widgets.BouncingBar(), ' ', widgets.Timer()]
+
+            class LooseAdaptiveETA(widgets.AdaptiveETA):
+                # Stabilize the ETA on results from large batches rushes in
+                NUM_SAMPLES = 100
+
+            barformat_finalized = [
+                widgets.AnimatedMarker(), ' ', widgets.Percentage(), ' of ',
+                widgets.FormatLabel('%(max)d'), ' ', widgets.Bar(), ' ',
+                widgets.Timer('Elapsed: %s'), ' ', LooseAdaptiveETA()]
+
+            pbar = ProgressBar(widgets=barformat_notfinalized)
+            pbar.start()
+            notfinalized = True
 
         while self.running:
-            if pbar_growing and self.scan_finished:
-                pbar_growing = False
-                self.pbar = pbarclass(max_value=self.reads_found,
-                                 initial_value=self.reads_processed)
-                self.pbar.start()
-            else:
-                self.pbar.update(self.reads_processed)
+            if showprogress:
+                if notfinalized and self.scan_finished:
+                    notfinalized = False
+                    pbar = ProgressBar(maxval=self.reads_found,
+                                       widgets=barformat_finalized)
+                    pbar.currval = self.reads_processed
+                    pbar.start()
+                else:
+                    pbar.update(self.reads_processed)
 
             try:
                 await asyncio.sleep(0.3)
