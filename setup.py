@@ -55,7 +55,6 @@ setup(
     ],
     install_requires=[
         'pomegranate >= 0.9.0',
-        'snakemake >= 4.4.0',
         'h5py >= 2.8.0rc1',
         'ont-fast5-api >= 0.4.1',
         'PyYAML >= 3.0',
