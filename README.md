@@ -98,5 +98,5 @@ Lorem ipsum dolor sit amet.
 ## Live Basecalling and Processing
 Lorem ipsum dolor sit amet.
 
-## Citation
+## Citing Octopus
 A pre-print is going to be released soon.

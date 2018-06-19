@@ -403,7 +403,7 @@ class SignalAnalysis:
     def push_barcode_signal(self, events, segments):
         adapter_events = events.iloc[slice(*segments['adapter'])]
         if len(adapter_events) > 0:
-            signal = adapter_events['scaled_mean'].as_matrix()
+            signal = adapter_events['scaled_mean'].values
             self.analyzer.demuxer.push(self.metainfo['read_id'], signal)
 
     def process(self):
