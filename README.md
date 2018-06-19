@@ -12,9 +12,14 @@ Signal-level preprocessor for Oxford Nanopore direct RNA sequencing
 
 ## Installation
 Octopus requires Python 3.5+ and [pip](http://pypi.python.org/pypi/pip) to install.
-This `pip` command installs `octopus` with its essential dependencies.
+This `pip` command installs `octopus` with its essential dependencies. Currently,
+you need to install `pomegranate` manually before installing octopus due to the
+memory leakage in the released versions of `pomegranate`.
 
+    ```bash
+    pip install cython && pip install git+https://github.com/jmschrei/pomegranate.git
     pip install octopus
+    ```
 
 To install it together with all optional dependencies (except `albacore`), use this
 command:
