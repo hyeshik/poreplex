@@ -250,15 +250,15 @@ def __main__():
         description='Makes nanopore direct RNA sequencing data '
                     'friendlier to RNA Biology')
 
-    parser.add_argument('-i', '--input', required=True,
+    parser.add_argument('-i', '--input', required=True, metavar='DIR',
                         help='Path to the directory with the input FAST5 files.')
-    parser.add_argument('-o', '--output', required=True,
+    parser.add_argument('-o', '--output', required=True, metavar='DIR',
                         help='Output directory path')
-    parser.add_argument('-p', '--parallel', default=1, type=int,
+    parser.add_argument('-p', '--parallel', default=1, type=int, metavar='COUNT',
                         help='Number of worker processes (default: 1)')
-    parser.add_argument('--batch-chunk', default=128, type=int,
+    parser.add_argument('--batch-chunk', default=128, type=int, metavar='SIZE',
                         help='Number of files in a single batch (default: 128)')
-    parser.add_argument('-c', '--config', default='',
+    parser.add_argument('-c', '--config', default='', metavar='NAME',
                         help='Path to signal processing configuration.')
     parser.add_argument('--live', default=False, action='store_true',
                         help='Monitor new files in the input directory')
@@ -279,9 +279,9 @@ def __main__():
     parser.add_argument('--symlink-fast5', default=False, action='store_true',
                         help='Create symbolic links to FAST5 files in output directories '
                              'even when hard linking is possible.')
-    parser.add_argument('--tmpdir', default='', type=str,
+    parser.add_argument('--tmpdir', default='', type=str, metavar='DIR',
                         help='Temporary directory for intermediate data.')
-    parser.add_argument('--live-analysis-delay', default=60, type=int,
+    parser.add_argument('--live-analysis-delay', default=60, type=int, metavar='SECONDS',
                         help='Time in seconds to delay the start of analysis in live mode '
                              '(default: 60)')
     parser.add_argument('-q', '--quiet', default=False, action='store_true',
