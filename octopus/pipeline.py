@@ -25,15 +25,16 @@ import signal
 import math
 import sys
 import os
-from errno import EXDEV
 from itertools import cycle
 from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
 from . import *
 from .io import (
     FASTQWriter, SequencingSummaryWriter, FinalSummaryTracker,
-    create_adapter_dumps_inventory, create_events_inventory)
+    create_adapter_dumps_inventory, create_events_inventory,
+    link_fast5_files)
 from .signal_analyzer import SignalAnalyzer
+from .alignment_writer import AlignmentWriter
 from .utils import *
 
 FAST5_SUFFIX = '.fast5'
@@ -118,16 +119,10 @@ class ProcessingSession:
         self.executor_io = ThreadPoolExecutor(2)
         self.executor_mon = ThreadPoolExecutor(2)
 
-        self.loop = self.fastq_writer = None
+        self.loop = self.fastq_writer = self.alignment_writer = None
         self.pbar = None
 
     def __enter__(self):
-        self.fastq_writer = FASTQWriter(self.config['outputdir'],
-                                        self.config['output_names'])
-        self.seqsummary_writer = SequencingSummaryWriter(self.config['outputdir'],
-                                                         self.config['output_names'])
-        self.finalsummary_tracker = FinalSummaryTracker(self.config['output_names'])
-
         self.loop = asyncio.get_event_loop()
         self.executor_compute.__enter__()
         self.executor_io.__enter__()
@@ -136,16 +131,40 @@ class ProcessingSession:
         for signame in 'SIGINT SIGTERM'.split():
             self.loop.add_signal_handler(getattr(signal, signame),
                                          self.stop, signame)
+
+        if self.config['fastq_output']:
+            self.fastq_writer = FASTQWriter(self.config['outputdir'],
+                                            self.config['output_names'])
+        self.seqsummary_writer = SequencingSummaryWriter(self.config['outputdir'],
+                                                         self.config['output_names'])
+        self.finalsummary_tracker = FinalSummaryTracker(self.config['output_names'])
+
+        if self.config['minimap2_index']:
+            self.show_message('==> Loading a minimap2 index file')
+            self.alignment_writer = AlignmentWriter(
+                self.config['minimap2_index'],
+                os.path.join(self.config['outputdir'], 'bam', '{}.bam'),
+                self.config['output_names'])
+
         return self
 
     def __exit__(self, *args):
+        if self.fastq_writer is not None:
+            self.fastq_writer.close()
+            self.fastq_writer = None
+
+        if self.seqsummary_writer is not None:
+            self.seqsummary_writer.close()
+            self.seqsummary_writer = None
+
+        if self.alignment_writer is not None:
+            self.alignment_writer.close()
+            self.alignment_writer = None
+
         self.executor_mon.__exit__(*args)
         self.executor_io.__exit__(*args)
         self.executor_compute.__exit__(*args)
         self.loop.close()
-
-        self.seqsummary_writer.close()
-        self.fastq_writer.close()
 
     def errx(self, message):
         if self.running:
@@ -206,10 +225,14 @@ class ProcessingSession:
                     self.reads_found -= 1
 
             if nd_results:
-                await self.run_in_executor_io(self.fastq_writer.write_sequences, nd_results)
+                if self.config['fastq_output']:
+                    await self.run_in_executor_io(self.fastq_writer.write_sequences, nd_results)
 
                 if self.config['fast5_output']:
-                    await self.run_in_executor_io(self.link_fast5, nd_results)
+                    await self.run_in_executor_io(link_fast5_files, nd_results)
+
+                if self.config['minimap2_index']:
+                    await self.run_in_executor_io(self.alignment_writer.process, nd_results)
 
                 await self.run_in_executor_io(self.seqsummary_writer.write_results, nd_results)
 
@@ -222,42 +245,6 @@ class ProcessingSession:
 
         self.reads_processed += len(nd_results)
         self.reads_queued -= len(nd_results)
-
-    def link_fast5(self, results):
-        indir = self.config['inputdir']
-        outdir = self.config['outputdir']
-        symlinkfirst = self.config['fast5_always_symlink']
-        labelmap = self.config['output_names']
-        blacklist_hardlinks = set()
-
-        for entry in results:
-            if 'label' not in entry: # Error before opening the FAST5
-                continue
-
-            original_fast5 = os.path.join(indir, entry['filename'])
-            link_path = os.path.join(outdir, 'fast5', labelmap[entry['label']],
-                                     entry['filename'])
-
-            original_dir = os.path.dirname(original_fast5)
-            link_dir = os.path.dirname(link_path)
-
-            if not os.path.isdir(link_dir):
-                try:
-                    os.makedirs(link_dir)
-                except FileExistsError:
-                    pass
-
-            if not symlinkfirst and (original_dir, link_dir) not in blacklist_hardlinks:
-                try:
-                    os.link(original_fast5, link_path)
-                except OSError as exc:
-                    if exc.errno != EXDEV:
-                        raise
-                    blacklist_hardlinks.add((original_dir, link_dir))
-                else:
-                    continue
-
-            os.symlink(os.path.abspath(original_fast5), link_path)
 
     def queue_processing(self, filepath):
         self.jobstack.append(filepath)
@@ -371,20 +358,20 @@ class ProcessingSession:
                 widgets.FormatLabel('%(max)d'), ' ', widgets.Bar(), ' ',
                 widgets.Timer('Elapsed: %s'), ' ', LooseAdaptiveETA()]
 
-            pbar = ProgressBar(widgets=barformat_notfinalized)
-            pbar.start()
+            self.pbar = ProgressBar(widgets=barformat_notfinalized)
+            self.pbar.start()
             notfinalized = True
 
         while self.running:
             if showprogress:
                 if notfinalized and self.scan_finished:
                     notfinalized = False
-                    pbar = ProgressBar(maxval=self.reads_found,
-                                       widgets=barformat_finalized)
-                    pbar.currval = self.reads_processed
-                    pbar.start()
+                    self.pbar = ProgressBar(maxval=self.reads_found,
+                                            widgets=barformat_finalized)
+                    self.pbar.currval = self.reads_processed
+                    self.pbar.start()
                 else:
-                    pbar.update(self.reads_processed)
+                    self.pbar.update(self.reads_processed)
 
             try:
                 await asyncio.sleep(0.3)
@@ -446,14 +433,14 @@ class ProcessingSession:
 
     def finalize_results(self):
         if self.config['dump_adapter_signals']:
-            self.show_message("==> Creating an inventory for adapter signal dumps...")
+            self.show_message("==> Creating an inventory for adapter signal dumps")
             adapter_dump_prefix = os.path.join(self.config['outputdir'], 'adapter-dumps')
             create_adapter_dumps_inventory(
                 os.path.join(adapter_dump_prefix, 'inventory.h5'),
                 os.path.join(adapter_dump_prefix, 'part-*.h5'))
 
         if self.config['dump_basecalls']:
-            self.show_message("==> Creating an inventory for basecalled events...")
+            self.show_message("==> Creating an inventory for basecalled events")
             events_prefix = os.path.join(self.config['outputdir'], 'events')
             create_events_inventory(
                 os.path.join(events_prefix, 'inventory.h5'),
@@ -462,7 +449,7 @@ class ProcessingSession:
     @classmethod
     def run(kls, config):
         with kls(config) as sess:
-            sess.show_message("==> Processing FAST5 files...")
+            sess.show_message("==> Processing FAST5 files")
 
             # Progress monitoring is not required during quiet AND live mode.
             if not config['live'] or not config['quiet']:

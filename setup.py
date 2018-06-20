@@ -62,6 +62,7 @@ setup(
         'pandas >= 0.22.0',
         'scipy >= 1.0',
         'pysam >= 0.14.0',
+        'mappy >= 2.10',
         'progressbar33 >= 2.4',
     ],
     extras_require={

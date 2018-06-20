@@ -30,6 +30,7 @@ import subprocess as sp
 from functools import partial
 from . import *
 from .pipeline import ProcessingSession
+from .alignment_writer import check_minimap2_index
 from .utils import *
 
 
@@ -59,7 +60,8 @@ def load_config(args):
     return config
 
 
-def create_output_directories(outputdir, config):
+def create_output_directories(config):
+    outputdir = config['outputdir']
     existing = os.listdir(outputdir)
     if existing:
         while config['interactive']:
@@ -79,16 +81,17 @@ def create_output_directories(outputdir, config):
             else:
                 os.unlink(fpath)
 
-    subdirs = ['fastq']
-
-    if config['fast5_output']:
-        subdirs.extend(['fast5'])
-
-    if config['dump_adapter_signals']:
-        subdirs.extend(['adapter-dumps'])
-
-    if config['dump_basecalls']:
-        subdirs.extend(['events'])
+    subdirs = []
+    conditional_subdirs = [
+        ('fastq_output', 'fastq'),
+        ('fast5_output', 'fast5'),
+        ('minimap2_index', 'bam'),
+        ('dump_adapter_signals', 'adapter-dumps'),
+        ('dump_basecalls', 'events'),
+    ]
+    for condition, subdir in conditional_subdirs:
+        if config[condition]:
+            subdirs.append(subdir)
 
     for subdir in subdirs:
         fullpath = os.path.join(outputdir, subdir)
@@ -130,7 +133,9 @@ def show_configuration(config, file):
     _(" * Trim 3' adapter:\t", bool2yn(config['trim_adapter']))
     _(" * Filter concatenated read:", bool2yn(config['filter_unsplit_reads']))
     _(" * Separate by barcode:\t", bool2yn(config['barcoding']))
-    _(" * Fast5 in output:\t", bool2yn(config['fast5_output']),
+    _(" * Real-time alignment:\t", bool2yn(config['minimap2_index']))
+    _(" * FASTQ in output:\t", bool2yn(config['fastq_output']))
+    _(" * FAST5 in output:\t", bool2yn(config['fast5_output']),
            '(Symlink)' if config['fast5_always_symlink'] else '')
     _(" * Basecall table in output:", bool2yn(config['dump_basecalls']))
 
@@ -180,18 +185,25 @@ def test_optional_features(config):
         except:
             errx("ERROR: Live monitoring (--live) requires the inotify module.")
 
+def test_inputs_and_outputs(config):
+    if not os.path.isdir(config['inputdir']):
+        errx('ERROR: Cannot open the input directory {}.'.format(config['inputdir']))
+
+    if not os.path.isdir(config['outputdir']):
+        try:
+            os.makedirs(config['outputdir'])
+        except:
+            errx('ERROR: Failed to create the output directory {}.'.format(config['outputdir']))
+
+    if config['minimap2_index']:
+        try:
+            check_minimap2_index(config['minimap2_index'])
+        except:
+            errx('ERROR: Could not load a minimap2 index from {}.'.format(config['minimap2_index']))
+
 def main(args):
     if not args.quiet:
         show_banner()
-
-    if not os.path.isdir(args.input):
-        errx('ERROR: Cannot open the input directory {}.'.format(args.input))
-
-    if not os.path.isdir(args.output):
-        try:
-            os.makedirs(args.output)
-        except:
-            errx('ERROR: Failed to create the output directory {}.'.format(args.output))
 
     config = load_config(args)
     config['quiet'] = args.quiet
@@ -209,16 +221,19 @@ def main(args):
     config['albacore_onthefly'] = args.albacore_onthefly
     config['dump_adapter_signals'] = args.dump_adapter_signals
     config['dump_basecalls'] = args.dump_basecalled_events
+    config['fastq_output'] = args.align is None or args.fastq
     config['fast5_output'] = args.fast5 or args.symlink_fast5
     config['fast5_always_symlink'] = args.symlink_fast5
     config['trim_adapter'] = args.trim_adapter
+    config['minimap2_index'] = args.align if args.align else None
     config['output_names'] = setup_output_name_mapping(config)
 
-    create_output_directories(args.output, config)
+    test_inputs_and_outputs(config)
+    create_output_directories(config)
     test_prerequisite_compatibility(config)
     test_optional_features(config)
 
-    with open(os.path.join(args.output, 'octopus.log'), 'w') as cfgf:
+    with open(os.path.join(config['outputdir'], 'octopus.log'), 'w') as cfgf:
         print("Octopus {}".format(__version__), file=cfgf)
         print("\nStarted at", time.asctime(), file=cfgf)
         print("\nCommand line:", ' '.join(sys.argv) + '\n', file=cfgf)
@@ -251,7 +266,7 @@ def __main__():
                     'friendlier to RNA Biology')
 
     parser.add_argument('-i', '--input', required=True, metavar='DIR',
-                        help='Path to the directory with the input FAST5 files.')
+                        help='Path to the directory with the input FAST5 files')
     parser.add_argument('-o', '--output', required=True, metavar='DIR',
                         help='Output directory path')
     parser.add_argument('-p', '--parallel', default=1, type=int, metavar='COUNT',
@@ -259,35 +274,39 @@ def __main__():
     parser.add_argument('--batch-chunk', default=128, type=int, metavar='SIZE',
                         help='Number of files in a single batch (default: 128)')
     parser.add_argument('-c', '--config', default='', metavar='NAME',
-                        help='Path to signal processing configuration.')
+                        help='Path to signal processing configuration')
     parser.add_argument('--live', default=False, action='store_true',
                         help='Monitor new files in the input directory')
     parser.add_argument('--albacore-onthefly', default=False, action='store_true',
                         help='Call the ONT albacore for basecalling on-the-fly')
     parser.add_argument('--barcoding', default=False, action='store_true',
-                        help='Sort barcoded reads into separate outputs.')
+                        help='Sort barcoded reads into separate outputs')
+    parser.add_argument('--align', default=None, type=str, metavar='INDEXFILE',
+                        help='Align basecalled reads using minimap2 and create BAM files')
     parser.add_argument('--trim-adapter', default=False, action='store_true',
-                        help="Trim 3' adapter sequences from FASTQ outputs.")
+                        help="Trim 3' adapter sequences from FASTQ outputs")
     parser.add_argument('--keep-unsplit', default=False, action='store_true',
-                        help="Don't remove unsplit reads fused of two or more RNAs in output.")
+                        help="Don't remove unsplit reads fused of two or more RNAs in output")
     parser.add_argument('--dump-adapter-signals', default=False, action='store_true',
                         help='Dump adapter signal dumps for training')
     parser.add_argument('--dump-basecalled-events', default=False, action='store_true',
                         help='Dump basecalled events to the output')
+    parser.add_argument('--fastq', default=False, action='store_true',
+                        help='Write to FASTQ files even when BAM files are produced')
     parser.add_argument('--fast5', default=False, action='store_true',
-                        help='Link or copy FAST5 files to separate output directories.')
+                        help='Link or copy FAST5 files to separate output directories')
     parser.add_argument('--symlink-fast5', default=False, action='store_true',
                         help='Create symbolic links to FAST5 files in output directories '
-                             'even when hard linking is possible.')
+                             'even when hard linking is possible')
     parser.add_argument('--tmpdir', default='', type=str, metavar='DIR',
-                        help='Temporary directory for intermediate data.')
+                        help='Temporary directory for intermediate data')
     parser.add_argument('--live-analysis-delay', default=60, type=int, metavar='SECONDS',
                         help='Time in seconds to delay the start of analysis in live mode '
                              '(default: 60)')
     parser.add_argument('-q', '--quiet', default=False, action='store_true',
-                        help='Suppress non-error messages.')
+                        help='Suppress non-error messages')
     parser.add_argument('-y', '--yes', default=False, action='store_true',
-                        help='Suppress all questions.')
+                        help='Suppress all questions')
 
     args = parser.parse_args(sys.argv[1:])
     main(args)

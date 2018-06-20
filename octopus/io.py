@@ -27,6 +27,7 @@ from collections import defaultdict
 import h5py
 import numpy as np
 import os
+from errno import EXDEV
 
 
 class FASTQWriter:
@@ -54,6 +55,43 @@ class FASTQWriter:
             if entry.get('fastq') is not None:
                 formatted = ''.join('@{}\n{}\n+\n{}\n'.format(entry['read_id'], *entry['fastq']))
                 self.streams[entry['label']].write(formatted.encode('ascii'))
+
+
+def link_fast5_files(config, results):
+    indir = config['inputdir']
+    outdir = config['outputdir']
+    symlinkfirst = config['fast5_always_symlink']
+    labelmap = config['output_names']
+    blacklist_hardlinks = set()
+
+    for entry in results:
+        if 'label' not in entry: # Error before opening the FAST5
+            continue
+
+        original_fast5 = os.path.join(indir, entry['filename'])
+        link_path = os.path.join(outdir, 'fast5', labelmap[entry['label']],
+                                 entry['filename'])
+
+        original_dir = os.path.dirname(original_fast5)
+        link_dir = os.path.dirname(link_path)
+
+        if not os.path.isdir(link_dir):
+            try:
+                os.makedirs(link_dir)
+            except FileExistsError:
+                pass
+
+        if not symlinkfirst and (original_dir, link_dir) not in blacklist_hardlinks:
+            try:
+                os.link(original_fast5, link_path)
+            except OSError as exc:
+                if exc.errno != EXDEV:
+                    raise
+                blacklist_hardlinks.add((original_dir, link_dir))
+            else:
+                continue
+
+        os.symlink(os.path.abspath(original_fast5), link_path)
 
 
 class SequencingSummaryWriter:
