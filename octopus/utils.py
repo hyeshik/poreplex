@@ -43,5 +43,7 @@ def errx(msg):
     sys.exit(254)
 
 def errprint(msg):
+    #import traceback, sys
+    #traceback.print_stack(file=sys.stderr)
     print(msg, file=sys.stderr)
 

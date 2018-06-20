@@ -26,6 +26,7 @@ from functools import partial
 from collections import defaultdict
 import h5py
 import numpy as np
+import logging
 import os
 from errno import EXDEV
 
@@ -165,9 +166,13 @@ class FinalSummaryTracker:
             self.counts[entry.get('label', 'file_error'), entry['status']] += 1
 
     def print_results(self, file):
-        _ = partial(print, sep='\t', file=file)
+        if hasattr(file, 'write'):
+            _ = partial(print, sep='\t', file=file)
+        else:
+            logger = logging.getLogger('octopus')
+            _ = lambda *args: logger.error(' '.join(map(str, args)))
 
-        _("\n== Result Summary ==")
+        _("== Result Summary ==")
         for label in self.reporting_order:
             matching_subcounts = {s: cnt for (l, s), cnt in self.counts.items() if l == label}
             subtotal = sum(matching_subcounts.values())

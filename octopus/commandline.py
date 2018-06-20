@@ -27,6 +27,7 @@ import time
 import yaml
 import shutil
 import subprocess as sp
+import logging
 from functools import partial
 from . import *
 from .pipeline import ProcessingSession
@@ -59,6 +60,16 @@ def load_config(args):
 
     return config
 
+def init_logging(config):
+    logfile = os.path.join(config['outputdir'], 'octopus.log')
+    logger = logging.getLogger('octopus')
+    handler = logging.FileHandler(logfile, 'w')
+
+    logger.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter('%(asctime)-15s %(message)s'))
+    logger.addHandler(handler)
+
+    return logger
 
 def create_output_directories(config):
     outputdir = config['outputdir']
@@ -116,8 +127,12 @@ def setup_output_name_mapping(config):
 
     return names
 
-def show_configuration(config, file):
-    _ = partial(print, sep='\t', file=file)
+def show_configuration(config, output):
+    if hasattr(output, 'write'): # file-like object
+        _ = partial(print, sep='\t', file=output)
+    else: # logger object
+        _ = lambda *args: output.info(' '.join(map(str, args)))
+
     bool2yn = lambda b: 'Yes' if b else 'No'
 
     _("== Analysis settings ======================================")
@@ -141,7 +156,8 @@ def show_configuration(config, file):
 
     if config['dump_adapter_signals']:
         _(" * Dump adapter signals for training:", "Yes")
-    _("===========================================================\n")
+    _("===========================================================")
+    _("")
 
 def test_prerequisite_compatibility(config):
     from distutils.version import LooseVersion
@@ -230,28 +246,26 @@ def main(args):
 
     test_inputs_and_outputs(config)
     create_output_directories(config)
+
+    logger = init_logging(config)
     test_prerequisite_compatibility(config)
     test_optional_features(config)
 
-    with open(os.path.join(config['outputdir'], 'octopus.log'), 'w') as cfgf:
-        print("Octopus {}".format(__version__), file=cfgf)
-        print("\nStarted at", time.asctime(), file=cfgf)
-        print("\nCommand line:", ' '.join(sys.argv) + '\n', file=cfgf)
+    logger.info('Starting Octopus version {}'.format(__version__))
+    logger.info('Command line: ' + ' '.join(sys.argv))
 
-        show_configuration(config, file=cfgf)
-        cfgf.flush()
+    show_configuration(config, output=logger)
+    if not config['quiet']:
+        show_configuration(config, output=sys.stdout)
 
+    procresult = ProcessingSession.run(config, logger)
+
+    if procresult is not None:
         if not config['quiet']:
-            show_configuration(config, sys.stdout)
+            procresult(sys.stdout)
+        procresult(logger)
 
-        procresult = ProcessingSession.run(config)
-
-        if procresult is not None:
-            if not config['quiet']:
-                procresult(sys.stdout)
-            procresult(cfgf)
-
-        print("\nFinished at", time.asctime(), file=cfgf)
+    logger.info('Finished.')
 
     if config['cleanup_tmpdir']:
         try:

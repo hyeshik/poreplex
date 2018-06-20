@@ -25,9 +25,11 @@ import signal
 import math
 import sys
 import os
+from io import StringIO
 from itertools import cycle
 from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
+from concurrent.futures.process import BrokenProcessPool
 from . import *
 from .io import (
     FASTQWriter, SequencingSummaryWriter, FinalSummaryTracker,
@@ -96,12 +98,14 @@ def process_batch(batchid, reads, config):
             return results
     except Exception as exc:
         import traceback
-        traceback.print_exc()
-        return -1, 'Unhandled exception {}: {}'.format(type(exc).__name__, str(exc))
+        errorf = StringIO()
+        traceback.print_exc(file=errorf)
+        return (-1, 'Unhandled exception {}: {}'.format(type(exc).__name__, str(exc)),
+                errorf.getvalue())
 
 class ProcessingSession:
 
-    def __init__(self, config):
+    def __init__(self, config, logger):
         self.running = True
         self.scan_finished = False
         self.reads_queued = self.reads_found = 0
@@ -114,6 +118,7 @@ class ProcessingSession:
             self.forced_flush_counter = 0
 
         self.config = config
+        self.logger = logger
 
         self.executor_compute = ProcessPoolExecutor(config['parallel'])
         self.executor_io = ThreadPoolExecutor(2)
@@ -209,8 +214,10 @@ class ProcessingSession:
 
             if len(results) > 0 and results[0] == -1: # Unhandled exception occurred
                 error_message = results[1]
-                errprint("\nERROR: " + error_message)
-                self.stop()
+                self.logger.error(error_message)
+                for line in results[2].splitlines():
+                    self.logger.error(line)
+                self.errx("ERROR: " + error_message)
                 return
 
             # Remove duplicated results that could be fed multiple times in live monitoring
@@ -238,8 +245,11 @@ class ProcessingSession:
 
                 self.finalsummary_tracker.feed_results(nd_results)
 
-        except CancelledError:
+        except (CancelledError, BrokenProcessPool):
             return
+        except Exception as exc:
+            self.logger.error('Unhandled error during processing reads', exc_info=exc)
+            return self.errx('ERROR: Unhandled error ' + str(exc))
         finally:
             self.active_batches -= 1
 
@@ -371,6 +381,7 @@ class ProcessingSession:
                     self.pbar.currval = self.reads_processed
                     self.pbar.start()
                 else:
+                    self.pbar.maxval = self.reads_found
                     self.pbar.update(self.reads_processed)
 
             try:
@@ -447,8 +458,8 @@ class ProcessingSession:
                 os.path.join(events_prefix, 'part-*.h5'))
 
     @classmethod
-    def run(kls, config):
-        with kls(config) as sess:
+    def run(kls, config, logging):
+        with kls(config, logging) as sess:
             sess.show_message("==> Processing FAST5 files")
 
             # Progress monitoring is not required during quiet AND live mode.
@@ -473,7 +484,12 @@ class ProcessingSession:
                         exc.args[0].startswith('Event loop stopped before Future')):
                     pass
                 else:
+                    import traceback
+                    errf = StringIO()
+                    traceback.print_exc(file=errf)
                     errprint('\nERROR: ' + str(exc))
+                    for line in errf.getvalue().splitlines():
+                        logging.error(line)
 
             sess.terminate_executors()
 
