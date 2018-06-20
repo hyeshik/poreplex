@@ -73,6 +73,16 @@ are produced from MinKNOW.
 octopus -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --albacore-onthefly --parallel 40 --live
 ```
 
+One may want to output *aligned* reads directly to BAM files instead of
+FASTQ outputs. Octopus streams the processed reads to `minimap2` and update
+the BAM outputs real-time. An pre-built index (not a FASTA) generated using
+`minimap2` must be provided for this.
+
+```bash
+octopus -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --albacore-onthefly \
+  --parallel 40 --live --align GRCz11-transcriptome.mmidx
+```
+
 By default, `octopus` discards pseudo-fusion reads which may originate
 from insufficiently segmented signals. You can suppress the filtering
 by an option.
