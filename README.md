@@ -6,9 +6,9 @@ Signal-level preprocessor for Oxford Nanopore direct RNA sequencing
 * Demultiplexing barcoded direct RNA sequencing libraries
 * 3′ Adapter sequence trimming
 * Pseudo-fusion read filtering
-* Basecalling with ONT albacore (much faster)
+* Basecalling with ONT `albacore` (even faster than `albacore` itself)
 * Live basecalling and processing
-* Real-time sequenced read alignments with minimap2
+* Real-time sequenced read alignments with `minimap2`
 * Organizing data in <100 files
 
 ## Installation
