@@ -325,6 +325,7 @@ class ProcessingSession:
 
         watch_flags = IN_CLOSE_WRITE | IN_MOVED_TO
         topdir = os.path.abspath(topdir + '/') + '/' # add / for commonprefix
+        is_fast5_to_analyze = lambda fn: fn[:1] != '.' and fn.lower().endswith(suffix)
         try:
             evgen = InotifyTree(topdir, mask=watch_flags).event_gen()
             while True:
@@ -335,7 +336,7 @@ class ProcessingSession:
                 header, type_names, path, filename = event
                 if 'IN_ISDIR' in type_names:
                     continue
-                if header.mask & watch_flags and filename.lower().endswith(suffix):
+                if header.mask & watch_flags and is_fast5_to_analyze(filename):
                     common = os.path.commonprefix([topdir, path])
                     if common != topdir:
                         errprint("ERROR: Change of {} detected, which is outside "
