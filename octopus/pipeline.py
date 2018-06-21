@@ -236,7 +236,7 @@ class ProcessingSession:
                     await self.run_in_executor_io(self.fastq_writer.write_sequences, nd_results)
 
                 if self.config['fast5_output']:
-                    await self.run_in_executor_io(link_fast5_files, nd_results)
+                    await self.run_in_executor_io(link_fast5_files, config, nd_results)
 
                 if self.config['minimap2_index']:
                     await self.run_in_executor_io(self.alignment_writer.process, nd_results)
