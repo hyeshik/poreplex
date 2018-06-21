@@ -141,7 +141,7 @@ class FinalSummaryTracker:
             'too_few_events': 'Signal is too short',
         },
         'artifact': {
-            'unsplit_read': 'Two or more separate molecules found in a read',
+            'unsplit_read': 'Two or more molecules found in a single read',
         },
         'file_error': {
             'disappeared': 'File is moved to other location',
