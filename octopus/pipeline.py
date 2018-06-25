@@ -114,8 +114,6 @@ class ProcessingSession:
         self.files_done = set()
         self.active_batches = 0
         self.jobstack = []
-        if config['live']:
-            self.forced_flush_counter = 0
 
         self.config = config
         self.logger = logger
@@ -125,7 +123,7 @@ class ProcessingSession:
         self.executor_mon = ThreadPoolExecutor(2)
 
         self.loop = self.fastq_writer = self.alignment_writer = None
-        self.pbar = None
+        self.dashboard = self.pbar = None
 
     def __enter__(self):
         self.loop = asyncio.get_event_loop()
@@ -239,7 +237,10 @@ class ProcessingSession:
                     await self.run_in_executor_io(link_fast5_files, self.config, nd_results)
 
                 if self.config['minimap2_index']:
-                    await self.run_in_executor_io(self.alignment_writer.process, nd_results)
+                    rescounts = await self.run_in_executor_io(self.alignment_writer.process,
+                                                              nd_results)
+                    if self.dashboard is not None:
+                        self.dashboard.feed_mapped(rescounts)
 
                 await self.run_in_executor_io(self.seqsummary_writer.write_results, nd_results)
 
@@ -319,7 +320,7 @@ class ProcessingSession:
             self.flush_jobstack()
             self.scan_finished = True
 
-    async def live_monitor_inputs(self, topdir, suffix=FAST5_SUFFIX):
+    async def live_watch_inputs(self, topdir, suffix=FAST5_SUFFIX):
         from inotify.adapters import InotifyTree
         from inotify.constants import IN_CLOSE_WRITE, IN_MOVED_TO
 
@@ -344,68 +345,65 @@ class ProcessingSession:
                         continue
                     relpath = os.path.join(path[len(common):], filename)
                     if relpath not in self.files_done:
-                        self.forced_flush_counter = 0
                         self.queue_processing(relpath)
 
         except CancelledError:
             pass
 
-    async def monitor_progresses(self):
-        showprogress = not self.config['quiet']
-
-        if showprogress:
-            from progressbar import ProgressBar, widgets
-
-            barformat_notfinalized = [
-                widgets.AnimatedMarker(), ' ', widgets.Counter(), ' ',
-                widgets.BouncingBar(), ' ', widgets.Timer()]
-
-            class LooseAdaptiveETA(widgets.AdaptiveETA):
-                # Stabilize the ETA on results from large batches rushes in
-                NUM_SAMPLES = 100
-
-            barformat_finalized = [
-                widgets.AnimatedMarker(), ' ', widgets.Percentage(), ' of ',
-                widgets.FormatLabel('%(max)d'), ' ', widgets.Bar(), ' ',
-                widgets.Timer('Elapsed: %s'), ' ', LooseAdaptiveETA()]
-
-            self.pbar = ProgressBar(widgets=barformat_notfinalized)
-            self.pbar.start()
-            notfinalized = True
-
+    async def wait_until_finish(self):
         while self.running:
-            if showprogress:
-                if notfinalized and self.scan_finished:
-                    notfinalized = False
-                    self.pbar = ProgressBar(maxval=self.reads_found,
-                                            widgets=barformat_finalized)
-                    self.pbar.currval = self.reads_processed
-                    self.pbar.start()
-                else:
-                    self.pbar.maxval = self.reads_found
-                    self.pbar.update(self.reads_processed)
-
             try:
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.5)
             except CancelledError:
                 break
 
             if self.scan_finished and self.reads_queued <= 0:
                 break
 
-    async def monitor_progresses_live(self):
+    async def show_progresses_offline(self):
+        from progressbar import ProgressBar, widgets
+
+        barformat_notfinalized = [
+            widgets.AnimatedMarker(), ' ', widgets.Counter(), ' ',
+            widgets.BouncingBar(), ' ', widgets.Timer()]
+
+        class LooseAdaptiveETA(widgets.AdaptiveETA):
+            # Stabilize the ETA on results from large batches rushes in
+            NUM_SAMPLES = 100
+
+        barformat_finalized = [
+            widgets.AnimatedMarker(), ' ', widgets.Percentage(), ' of ',
+            widgets.FormatLabel('%(max)d'), ' ', widgets.Bar(), ' ',
+            widgets.Timer('Elapsed: %s'), ' ', LooseAdaptiveETA()]
+
+        self.pbar = ProgressBar(widgets=barformat_notfinalized)
+        self.pbar.start()
+        notfinalized = True
+
+        while self.running:
+            if notfinalized and self.scan_finished:
+                notfinalized = False
+                self.pbar = ProgressBar(maxval=self.reads_found,
+                                        widgets=barformat_finalized)
+                self.pbar.currval = self.reads_processed
+                self.pbar.start()
+            else:
+                self.pbar.maxval = self.reads_found
+                self.pbar.update(self.reads_processed)
+
+            try:
+                await asyncio.sleep(0.3)
+            except CancelledError:
+                break
+
+    async def show_progresses_live(self):
         self.show_message('==> Entering LIVE mode.')
         self.show_message('\nPress Ctrl-C when the sequencing run is finished.')
+        self.show_message('(!) An analysis starts at least {} seconds after the file '
+                          'is discovered.'.format(self.config['analysis_start_delay']))
         prev_processed = prev_queued = prev_found = -1
         prev_message_width = 0
         iterglider = cycle(r'/-\|')
-
-        # Estimate rough interval to force queue flushing on stagnated queueing.
-        monitor_heartbeat = 0.3
-        forcedflush = int(math.ceil(self.config['analysis_start_delay']
-                                    / monitor_heartbeat))
-        # Avoid flushing queue too often
-        forcedflush = max(10 // monitor_heartbeat, forcedflush)
 
         while self.running:
             changedany = (
@@ -428,17 +426,47 @@ class ProcessingSession:
                 prev_queued = self.reads_queued
                 prev_found = self.reads_found
 
-            if self.reads_queued > 0:
-                self.forced_flush_counter += 1
-
             try:
-                await asyncio.sleep(monitor_heartbeat)
+                await asyncio.sleep(0.3)
             except CancelledError:
                 break
 
-            if self.reads_queued > 0 and self.forced_flush_counter > forcedflush:
-                self.forced_flush_counter = 0
-                self.flush_jobstack()
+    async def force_flushing_stalled_queue(self):
+        prev_count = -1
+        heartbeat = max(10, int(self.config['analysis_start_delay'] // 2))
+        stall_counter = 0; stall_trigger = 2
+
+        while self.running:
+            try:
+                await asyncio.sleep(heartbeat)
+            except CancelledError:
+                break
+
+            if self.reads_found != prev_count:
+                stall_counter = 0
+                prev_count = self.reads_found
+                continue
+
+            if self.reads_queued > 0:
+                stall_counter += 1
+
+                if stall_counter >= stall_trigger:
+                    stall_counter = 0
+                    self.flush_jobstack()
+
+    def start_dashboard(self):
+        from . import dashboard
+
+        if self.config['contig_aliases'] and self.config['minimap2_index']:
+            aliases = dashboard.load_aliases(self.config['contig_aliases'])
+        else:
+            aliases = {}
+        view = dashboard.DashboardView(self, self.config['output_names'],
+                                       'progress', 'mapped_rate',
+                                       self.config['analysis_start_delay'],
+                                       aliases)
+        view.start(self.loop)
+        return view
 
     def terminate_executors(self):
         force_terminate_executor(self.executor_compute)
@@ -463,21 +491,34 @@ class ProcessingSession:
         with kls(config, logging) as sess:
             sess.show_message("==> Processing FAST5 files")
 
-            # Progress monitoring is not required during quiet AND live mode.
-            if not config['live'] or not config['quiet']:
-                monitor_func = (sess.monitor_progresses_live if config['live']
-                                else sess.monitor_progresses)
-                monitor_task = sess.loop.create_task(monitor_func())
+            if config['live']:
+                # Start monitoring stalled queue
+                mon_task = sess.loop.create_task(sess.force_flushing_stalled_queue())
+            else:
+                # Start monitoring finished processing
+                mon_task = sess.loop.create_task(sess.wait_until_finish())
 
+            # Start a progress updater for the user
+            if config['quiet']:
+                pass
+            elif config['dashboard']:
+                sess.dashboard = sess.start_dashboard()
+            elif config['live']:
+                sess.loop.create_task(sess.show_progresses_live())
+            else:
+                sess.loop.create_task(sess.show_progresses_offline())
+
+            # Start the directory scanner
             scanjob = sess.scan_dir_recursive(config['inputdir'])
             sess.loop.create_task(scanjob)
 
+            # Start the directory change watcher in the live mode
             if config['live']:
-                livemon = sess.live_monitor_inputs(config['inputdir'])
-                sess.loop.create_task(livemon)
+                livewatcher = sess.live_watch_inputs(config['inputdir'])
+                sess.loop.create_task(livewatcher)
 
             try:
-                sess.loop.run_until_complete(monitor_task)
+                sess.loop.run_until_complete(mon_task)
             except CancelledError:
                 errprint('\nInterrupted')
             except Exception as exc:

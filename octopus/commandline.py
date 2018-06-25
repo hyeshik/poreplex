@@ -76,8 +76,11 @@ def create_output_directories(config):
     existing = os.listdir(outputdir)
     if existing:
         while config['interactive']:
-            answer = input('Output directory {} is not empty. Clear it? (y/N) '
-                            .format(outputdir))
+            try:
+                answer = input('Output directory {} is not empty. Clear it? (y/N) '
+                                .format(outputdir))
+            except KeyboardInterrupt:
+                raise SystemExit
             answer = answer.lower()[:1]
             if answer in ('', 'n'):
                 sys.exit(1)
@@ -229,6 +232,8 @@ def main(args):
     config['outputdir'] = args.output
     config['live'] = args.live
     config['analysis_start_delay'] = args.live_analysis_delay if args.live else 0
+    config['dashboard'] = args.dashboard
+    config['contig_aliases'] = args.contig_aliases
     config['tmpdir'] = args.tmpdir if args.tmpdir else os.path.join(args.output, 'tmp')
     config['cleanup_tmpdir'] = False # will be changed during creation of output dirs
     config['barcoding'] = args.barcoding
@@ -275,52 +280,73 @@ def main(args):
 
 def __main__():
     parser = argparse.ArgumentParser(
-        prog='octopus',
+        prog='octopus', add_help=False,
         description='Makes nanopore direct RNA sequencing data '
                     'friendlier to RNA Biology')
 
-    parser.add_argument('-i', '--input', required=True, metavar='DIR',
-                        help='Path to the directory with the input FAST5 files')
-    parser.add_argument('-o', '--output', required=True, metavar='DIR',
-                        help='Output directory path')
-    parser.add_argument('-p', '--parallel', default=1, type=int, metavar='COUNT',
-                        help='Number of worker processes (default: 1)')
-    parser.add_argument('--batch-chunk', default=128, type=int, metavar='SIZE',
-                        help='Number of files in a single batch (default: 128)')
-    parser.add_argument('-c', '--config', default='', metavar='NAME',
-                        help='Path to signal processing configuration')
-    parser.add_argument('--live', default=False, action='store_true',
-                        help='Monitor new files in the input directory')
-    parser.add_argument('--albacore-onthefly', default=False, action='store_true',
-                        help='Call the ONT albacore for basecalling on-the-fly')
-    parser.add_argument('--barcoding', default=False, action='store_true',
-                        help='Sort barcoded reads into separate outputs')
-    parser.add_argument('--align', default=None, type=str, metavar='INDEXFILE',
-                        help='Align basecalled reads using minimap2 and create BAM files')
-    parser.add_argument('--trim-adapter', default=False, action='store_true',
-                        help="Trim 3' adapter sequences from FASTQ outputs")
-    parser.add_argument('--keep-unsplit', default=False, action='store_true',
-                        help="Don't remove unsplit reads fused of two or more RNAs in output")
-    parser.add_argument('--dump-adapter-signals', default=False, action='store_true',
-                        help='Dump adapter signal dumps for training')
-    parser.add_argument('--dump-basecalled-events', default=False, action='store_true',
-                        help='Dump basecalled events to the output')
-    parser.add_argument('--fastq', default=False, action='store_true',
-                        help='Write to FASTQ files even when BAM files are produced')
-    parser.add_argument('--fast5', default=False, action='store_true',
-                        help='Link or copy FAST5 files to separate output directories')
-    parser.add_argument('--symlink-fast5', default=False, action='store_true',
-                        help='Create symbolic links to FAST5 files in output directories '
-                             'even when hard linking is possible')
-    parser.add_argument('--tmpdir', default='', type=str, metavar='DIR',
-                        help='Temporary directory for intermediate data')
-    parser.add_argument('--live-analysis-delay', default=60, type=int, metavar='SECONDS',
-                        help='Time in seconds to delay the start of analysis in live mode '
-                             '(default: 60)')
-    parser.add_argument('-q', '--quiet', default=False, action='store_true',
-                        help='Suppress non-error messages')
-    parser.add_argument('-y', '--yes', default=False, action='store_true',
-                        help='Suppress all questions')
+    group = parser.add_argument_group('Data Settings')
+    group.add_argument('-i', '--input', required=True, metavar='DIR',
+                       help='path to the directory with the input FAST5 files '
+                            '(Required)')
+    group.add_argument('-o', '--output', required=True, metavar='DIR',
+                       help='output directory path (Required)')
+    group.add_argument('-c', '--config', default='', metavar='NAME',
+                       help='path to signal processing configuration')
+
+    group = parser.add_argument_group('Basic Processing Options')
+    group.add_argument('--trim-adapter', default=False, action='store_true',
+                       help="trim 3' adapter sequences from FASTQ outputs")
+    group.add_argument('--keep-unsplit', default=False, action='store_true',
+                       help="don't remove unsplit reads fused of two or more RNAs in output")
+
+    group = parser.add_argument_group('Optional Analyses')
+    group.add_argument('--barcoding', default=False, action='store_true',
+                       help='sort barcoded reads into separate outputs')
+    group.add_argument('--albacore-onthefly', default=False, action='store_true',
+                       help='call the ONT albacore for basecalling on-the-fly')
+    group.add_argument('--align', default=None, type=str, metavar='INDEXFILE',
+                       help='align basecalled reads using minimap2 and create BAM files')
+
+    group = parser.add_argument_group('Live Mode')
+    group.add_argument('--live', default=False, action='store_true',
+                       help='monitor new files in the input directory')
+    group.add_argument('--live-analysis-delay', default=60, type=int, metavar='SECONDS',
+                       help='time to delay the start of analysis in live mode '
+                            '(default: 60)')
+
+    group = parser.add_argument_group('Output Options')
+    group.add_argument('--fastq', default=False, action='store_true',
+                       help='write to FASTQ files even when BAM files are produced')
+    group.add_argument('--fast5', default=False, action='store_true',
+                       help='link or copy FAST5 files to separate output directories')
+    group.add_argument('--symlink-fast5', default=False, action='store_true',
+                       help='create symbolic links to FAST5 files in output directories '
+                            'even when hard linking is possible')
+    group.add_argument('--dump-adapter-signals', default=False, action='store_true',
+                       help='dump adapter signal dumps for training')
+    group.add_argument('--dump-basecalled-events', default=False, action='store_true',
+                       help='dump basecalled events to the output')
+
+    group = parser.add_argument_group('User Interface')
+    group.add_argument('--dashboard', dest='dashboard', default=False, action='store_true',
+                       help="show the full screen dashboard")
+    group.add_argument('--contig-aliases', default=None, metavar='FILE', type=str,
+                       help='path to a tab-separated text file for aliases to show '
+                            'as a contig names in the dashboard (see README)')
+    group.add_argument('-q', '--quiet', default=False, action='store_true',
+                       help='suppress non-error messages')
+    group.add_argument('-y', '--yes', default=False, action='store_true',
+                       help='suppress all questions')
+
+    group = parser.add_argument_group('Pipeline Options')
+    group.add_argument('-p', '--parallel', default=1, type=int, metavar='COUNT',
+                       help='number of worker processes (default: 1)')
+    group.add_argument('--tmpdir', default='', type=str, metavar='DIR',
+                       help='temporary directory for intermediate data')
+    group.add_argument('--batch-chunk', default=128, type=int, metavar='SIZE',
+                       help='number of files in a single batch (default: 128)')
+    group.add_argument('-h', '--help', action='help',
+                       help='show this help message and exit')
 
     args = parser.parse_args(sys.argv[1:])
     main(args)

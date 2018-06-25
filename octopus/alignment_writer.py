@@ -24,6 +24,7 @@ import mappy
 from pysam import FUNMAP, FREVERSE, FSECONDARY, FSUPPLEMENTARY
 from pysam import AlignmentFile, AlignedSegment
 from struct import pack, unpack, calcsize
+from collections import defaultdict
 
 MM_IDX_MAGIC = b"MMI\2"
 
@@ -140,12 +141,32 @@ class AlignmentWriter:
 
     def map_and_write(self, muxid, name, seq, qual):
         writer = self.writers[muxid]
+        mapped_seqname = None
         for row in self.map(name, seq, qual):
+            if mapped_seqname is None:
+                mapped_seqname = row[2]
             writer.write(row)
+        return mapped_seqname
 
     def process(self, results):
+        mapped_seqs = defaultdict(list)
+        failed_counts = defaultdict(int)
+        unmapped_counts = defaultdict(int)
+
         for result in results:
-            if (result['status'] == 'okay' and 'label' in result and
+            label = result.get('label')
+
+            if (result['status'] == 'okay' and label is not None and
                     'fastq' in result):
-                self.map_and_write(result['label'], result['read_id'],
+                mapped = self.map_and_write(result['label'], result['read_id'],
                     *result['fastq'])
+
+                if mapped == '*':
+                    unmapped_counts[label] += 1
+                else:
+                    mapped_seqs[label].append(mapped)
+            else:
+                failed_counts[label] += 1
+
+        return {'mapped': mapped_seqs, 'failed': failed_counts, 'unmapped': unmapped_counts}
+
