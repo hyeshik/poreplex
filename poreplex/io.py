@@ -169,7 +169,7 @@ class FinalSummaryTracker:
         if hasattr(file, 'write'):
             _ = partial(print, sep='\t', file=file)
         else:
-            logger = logging.getLogger('octopus')
+            logger = logging.getLogger('poreplex')
             _ = lambda *args: logger.error(' '.join(map(str, args)))
 
         _("== Result Summary ==")

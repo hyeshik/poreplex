@@ -1,6 +1,6 @@
-# Octopus
+# Poreplex
 Signal-level preprocessor for Oxford Nanopore direct RNA sequencing
-(DRS) data. Octopus transforms the data more accessible to RNA Biology.
+(DRS) data. Poreplex transforms the data more accessible to RNA Biology.
 
 ## Features
 * Demultiplexing barcoded direct RNA sequencing libraries
@@ -12,27 +12,27 @@ Signal-level preprocessor for Oxford Nanopore direct RNA sequencing
 * Organizing data in <100 files
 
 ## Installation
-Octopus requires Python 3.5+ and [pip](http://pypi.python.org/pypi/pip) to install.
-This `pip` command installs `octopus` with its essential dependencies. Currently,
-you need to install `pomegranate` manually before installing octopus due to the
+Poreplex requires Python 3.5+ and [pip](http://pypi.python.org/pypi/pip) to install.
+This `pip` command installs `poreplex` with its essential dependencies. Currently,
+you need to install `pomegranate` manually before installing poreplex due to the
 memory leakage in the released versions of `pomegranate`.
 
 ```bash
 pip install cython && pip install git+https://github.com/jmschrei/pomegranate.git
-pip install octopus
+pip install poreplex
 ```
 
 To install it together with all optional dependencies (except `albacore`), use this
 command:
 
 ```bash
-pip install 'octopus[full]'
+pip install 'poreplex[full]'
 ```
 
 ### Additional (Optional) Dependency
-Octopus requires the FAST5 files basecalled using
+Poreplex requires the FAST5 files basecalled using
 [ONT albacore](https://community.nanoporetech.com/downloads) as inputs.
-Alternatively, octopus can also internally call `albacore` during the
+Alternatively, poreplex can also internally call `albacore` during the
 processing without the prior basecalling if the `albacore` package is
 available from the environment.
 
@@ -41,7 +41,7 @@ Produce FASTQ files with 3′ adapter sequences removed from a directory
 containing a bunch of FAST5 files.
 
 ```bash
-octopus -i path/to/fast5 -o path/to/output --trim-adapter
+poreplex -i path/to/fast5 -o path/to/output --trim-adapter
 ```
 
 Four barcoded direct RNA sequencing libraries (see below for details)
@@ -49,54 +49,54 @@ were pooled and sequenced together. Trim 3′ adapters and demultiplex
 the reads into separate FASTQ files.
 
 ```bash
-octopus -i path/to/fast5 -o path/to/output --trim-adapter --barcoding
+poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding
 ```
 
 In addition to the above, create directories containing hard-links to
 the original FAST5 files organized separately by the barcodes.
 
 ```bash
-octopus -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --fast5
+poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --fast5
 ```
 
 In case the FAST5 files are not basecalled yet, just a switch lets
-`octopus` call `albacore` internally. Multicore machines help.
+`poreplex` call `albacore` internally. Multicore machines help.
 
 ```bash
-octopus -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --fast5 --albacore-onthefly --parallel 40
+poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --fast5 --albacore-onthefly --parallel 40
 ```
 
 With the `--live` switch, All tasks can be processed as soon as reads
 are produced from MinKNOW.
 
 ```bash
-octopus -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --albacore-onthefly --parallel 40 --live
+poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --albacore-onthefly --parallel 40 --live
 ```
 
 One may want to output *aligned* reads directly to BAM files instead of
-FASTQ outputs. Octopus streams the processed reads to `minimap2` and update
+FASTQ outputs. Poreplex streams the processed reads to `minimap2` and update
 the BAM outputs real-time. An pre-built index (not a FASTA) generated using
 `minimap2` must be provided for this.
 
 ```bash
-octopus -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --albacore-onthefly \
+poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --albacore-onthefly \
   --parallel 40 --live --align GRCz11-transcriptome.mmidx
 ```
 
-By default, `octopus` discards pseudo-fusion reads which may originate
+By default, `poreplex` discards pseudo-fusion reads which may originate
 from insufficiently segmented signals. You can suppress the filtering
 by an option.
 
 ```bash
-octopus -i path/to/fast5 -o path/to/output --keep-unsplit
+poreplex -i path/to/fast5 -o path/to/output --keep-unsplit
 ```
 
 ## Barcoding direct RNA sequencing libraries
 ONT direct RNA sequencing libraries are prepared by subsequently attaching
 two different 3' adapters, [RTA and RMX](https://community.nanoporetech.com/protocols/sequence-specific-direct-rna-sequencing/v/drss_9035_v1_revg_11may2017/overview-of-the-direct-rna),
 respectively. Both are double-stranded DNAs with Y-burged ends on the
-3'-sides. Octopus barcoded libraries can be built with modified versions of
-RTA adapters. Unlike in the DNA sequencing libraries, `octopus` demultiplexes
+3'-sides. Poreplex barcoded libraries can be built with modified versions of
+RTA adapters. Unlike in the DNA sequencing libraries, `poreplex` demultiplexes
 in signal-level to ensure the highest accuracy. The distribution contains
 demultiplexer models pre-trained with four different DNA barcodes.
 Order these sequences and replace the original RTA adapters as many as you
@@ -128,5 +128,5 @@ Lorem ipsum dolor sit amet.
 ## Live Basecalling and Processing
 Lorem ipsum dolor sit amet.
 
-## Citing Octopus
+## Citing Poreplex
 A pre-print is going to be released soon.

@@ -42,7 +42,7 @@ class PipelineHandledError(Exception):
     pass
 
 
-def load_persistence_store(config, analyzer, storage_name='__octopus_persistence'):
+def load_persistence_store(config, analyzer, storage_name='__poreplex_persistence'):
     import importlib.util as imputil, sys
 
     if storage_name not in sys.modules:

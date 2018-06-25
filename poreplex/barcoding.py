@@ -92,7 +92,7 @@ class BarcodeDemultiplexer:
 
 if __name__ == '__main__':
     import yaml
-    config = yaml.load(open('octopus/presets/rna-r941.cfg'))
+    config = yaml.load(open('poreplex/presets/rna-r941.cfg'))
     demux = BarcodeDemultiplexer(config)
 
     import h5py

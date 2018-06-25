@@ -27,14 +27,14 @@ extra_dependencies_barcoding = ['tensorflow >= 1.8.0', 'Keras >= 2.1.6']
 extra_dependencies_live = ['inotify >= 0.2.9']
 
 setup(
-    name='octopus',
-    packages=['octopus'],
+    name='poreplex',
+    packages=['poreplex'],
     version='0.1',
     description='Squiggle-level data preprocessor for nanopore direct RNA sequencing',
     author='Hyeshik Chang',
     author_email='hyeshik@snu.ac.kr',
-    url='https://github.com/hyeshik/octopus',
-    download_url='https://github.com/hyeshik/octopus/archive/octopus-0.1.tar.gz',
+    url='https://github.com/hyeshik/poreplex',
+    download_url='https://github.com/hyeshik/poreplex/archive/poreplex-0.1.tar.gz',
     include_package_data=True,
     keywords=[
         'nanopore',
@@ -73,7 +73,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'octopus = octopus.commandline:__main__'
+            'poreplex = poreplex.commandline:__main__'
         ],
     },
 )

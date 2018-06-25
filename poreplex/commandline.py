@@ -37,7 +37,7 @@ from .utils import *
 
 def show_banner():
     print("""
-\x1b[1mOctopus\x1b[0m version {version} by Hyeshik Chang
+\x1b[1mPoreplex\x1b[0m version {version} by Hyeshik Chang
 - Makes nanopore direct RNA sequencing data friendlier to RNA Biology
 """.format(version=__version__))
 
@@ -61,8 +61,8 @@ def load_config(args):
     return config
 
 def init_logging(config):
-    logfile = os.path.join(config['outputdir'], 'octopus.log')
-    logger = logging.getLogger('octopus')
+    logfile = os.path.join(config['outputdir'], 'poreplex.log')
+    logger = logging.getLogger('poreplex')
     handler = logging.FileHandler(logfile, 'w')
 
     logger.setLevel(logging.INFO)
@@ -185,7 +185,7 @@ def test_optional_features(config):
         # avoid potential conflicts between duplicated resources in the C++
         # library memory space when the workers are forked into multiple processes.
         result = sp.check_output([sys.executable, '-m',
-            'octopus.basecall_albacore', config['albacore_configuration'],
+            'poreplex.basecall_albacore', config['albacore_configuration'],
             config['flowcell'], config['kit']]).decode().strip()
         if result.startswith('okay'):
             config['albacore_version'] = result.split()[1]
@@ -256,7 +256,7 @@ def main(args):
     test_prerequisite_compatibility(config)
     test_optional_features(config)
 
-    logger.info('Starting Octopus version {}'.format(__version__))
+    logger.info('Starting poreplex version {}'.format(__version__))
     logger.info('Command line: ' + ' '.join(sys.argv))
 
     show_configuration(config, output=logger)
@@ -280,7 +280,7 @@ def main(args):
 
 def __main__():
     parser = argparse.ArgumentParser(
-        prog='octopus', add_help=False,
+        prog='poreplex', add_help=False,
         description='Makes nanopore direct RNA sequencing data '
                     'friendlier to RNA Biology')
 

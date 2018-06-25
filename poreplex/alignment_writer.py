@@ -53,7 +53,7 @@ class BAMWriter:
     def build_header(self, indexed_sequence_list, index_options):
         return {'SQ': indexed_sequence_list,
                 'PG': [{'ID': 'minimap2', 'PN': 'minimap2',
-                        'CL': index_options, 'DS': 'minimap2 invoked by octopus'}]}
+                        'CL': index_options, 'DS': 'minimap2 invoked by poreplex'}]}
 
     def write(self, fields):
         line = '\t'.join(map(str, fields))

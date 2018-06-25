@@ -1,7 +1,7 @@
 include README.md
 include LICENSE
-include octopus/kmer_models/COPYRIGHT
-include octopus/kmer_models/*.md
-include octopus/kmer_models/*RNA/*.model
-include octopus/presets/*.cfg
-include octopus/presets/*/*.hdf5
+include poreplex/kmer_models/COPYRIGHT
+include poreplex/kmer_models/*.md
+include poreplex/kmer_models/*RNA/*.model
+include poreplex/presets/*.cfg
+include poreplex/presets/*/*.hdf5
