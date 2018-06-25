@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2018 Hyeshik Chang
+# Copyright (c) 2018 Institute for Basic Science
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,7 @@ from .utils import *
 
 def show_banner():
     print("""
-\x1b[1mPoreplex\x1b[0m version {version} by Hyeshik Chang
+\x1b[1mPoreplex\x1b[0m version {version} by Hyeshik Chang <hyeshik@snu.ac.kr>
 - Makes nanopore direct RNA sequencing data friendlier to RNA Biology
 """.format(version=__version__))
 
