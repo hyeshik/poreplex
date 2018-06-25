@@ -231,7 +231,7 @@ def main(args):
     config['inputdir'] = args.input
     config['outputdir'] = args.output
     config['live'] = args.live
-    config['analysis_start_delay'] = args.live_analysis_delay if args.live else 0
+    config['analysis_start_delay'] = args.live_delay if args.live else 0
     config['dashboard'] = args.dashboard
     config['contig_aliases'] = args.contig_aliases
     config['tmpdir'] = args.tmpdir if args.tmpdir else os.path.join(args.output, 'tmp')
@@ -239,7 +239,7 @@ def main(args):
     config['barcoding'] = args.barcoding
     config['filter_unsplit_reads'] = not args.keep_unsplit
     config['batch_chunk_size'] = args.batch_chunk
-    config['albacore_onthefly'] = args.albacore_onthefly
+    config['albacore_onthefly'] = args.basecall
     config['dump_adapter_signals'] = args.dump_adapter_signals
     config['dump_basecalls'] = args.dump_basecalled_events
     config['fastq_output'] = args.align is None or args.fastq
@@ -302,7 +302,7 @@ def __main__():
     group = parser.add_argument_group('Optional Analyses')
     group.add_argument('--barcoding', default=False, action='store_true',
                        help='sort barcoded reads into separate outputs')
-    group.add_argument('--albacore-onthefly', default=False, action='store_true',
+    group.add_argument('--basecall', default=False, action='store_true',
                        help='call the ONT albacore for basecalling on-the-fly')
     group.add_argument('--align', default=None, type=str, metavar='INDEXFILE',
                        help='align basecalled reads using minimap2 and create BAM files')
@@ -310,7 +310,7 @@ def __main__():
     group = parser.add_argument_group('Live Mode')
     group.add_argument('--live', default=False, action='store_true',
                        help='monitor new files in the input directory')
-    group.add_argument('--live-analysis-delay', default=60, type=int, metavar='SECONDS',
+    group.add_argument('--live-delay', default=60, type=int, metavar='SECONDS',
                        help='time to delay the start of analysis in live mode '
                             '(default: 60)')
 
