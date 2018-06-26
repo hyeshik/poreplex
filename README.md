@@ -134,22 +134,75 @@ BC4 Oligo A: 5'-/5Phos/CCTCCTTCAGAAGAGGGTCGCTTCTACCTAGTAGGTTC-3'
 BC4 Oligo B: 5'-GAGGCGAGCGGTCAATTTTGGTAGAAGCGACCCTCTTCTGAAGGAGGTTTTTTTTTT-3'
 ```
 
-## Basecalling with ONT Albacore
+## Basecalling with the ONT Albacore
 Most studies requiring signal-level analysis need re-basecalling with
-the ONT `albacore` because the live basecaller equipped in the MinKNOW
-does not generate the event tables in the FAST5 files. `Poreplex` can
-run internally call the basecaller core routines of `albacore` directly
-to yield the sequences and tables for the downstream analyses. In fact,
-running `albacore` via `poreplex` is remarkably faster than running
-`albacore` itself in the multi-core machines thanks to its more efficient
-scheduling of the computational loads.
+the ONT `albacore` to get the event tables in the FAST5 files. `Poreplex`
+can internally call the basecaller core routines of `albacore` to yield
+the sequences and tables for the downstream analyses. In fact, running
+`albacore` via `poreplex` is remarkably faster than running `albacore`
+itself in a multi-core machine thanks to more efficient scheduling of
+the computational loads.
 
 <p align="center">
 <img src="https://cowork.narrykim.org/nanopore/octopus/raw/master/doc/images/poreplex-albacore-benchmark.jpg" width="520px">
 </p>
 
 ## Live Basecalling and Processing
-Lorem ipsum dolor sit amet.
+Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
+veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea
+commodo consequat. Duis aute irure dolor in reprehenderit in voluptate
+velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat
+cupidatat non proident, sunt in culpa qui officia deserunt mollit anim
+id est laborum.
+
+## Real-time sequence alignments 
+Vitae congue eu consequat ac felis donec et odio pellentesque. Eget
+velit aliquet sagittis id consectetur purus. Iaculis at erat
+pellentesque adipiscing commodo elit. Nisi scelerisque eu ultrices
+vitae auctor. Pellentesque diam volutpat commodo sed egestas egestas
+fringilla. Enim nulla aliquet porttitor lacus. Dignissim enim sit amet
+venenatis urna. Eros in cursus turpis massa tincidunt dui ut. Quisque
+sagittis purus sit amet volutpat. Vitae auctor eu augue ut lectus arcu
+bibendum. Eu lobortis elementum nibh tellus molestie nunc non. Sit
+amet justo donec enim diam vulputate ut pharetra. Vestibulum lectus
+mauris ultrices eros in. Varius quam quisque id diam vel quam elementum
+pulvinar etiam. Eget est lorem ipsum dolor sit. Sociis natoque penatibus
+et magnis. Quis ipsum suspendisse ultrices gravida dictum fusce. Tellus
+integer feugiat scelerisque varius morbi. Egestas quis ipsum suspendisse
+ultrices gravida dictum fusce. Nibh tortor id aliquet lectus proin nibh
+nisl condimentum id.
+
+## Real-time reports
+Interdum posuere lorem ipsum dolor sit. Consectetur a erat nam at lectus
+urna duis convallis convallis. Augue eget arcu dictum varius duis at
+consectetur lorem donec. Elementum nisi quis eleifend quam adipiscing
+vitae proin sagittis nisl. Donec ac odio tempor orci dapibus. Convallis
+tellus id interdum velit laoreet. Tempus imperdiet nulla malesuada
+pellentesque elit eget. Enim nulla aliquet porttitor lacus luctus. Vel
+risus commodo viverra maecenas. Vulputate ut pharetra sit amet aliquam
+id. Velit scelerisque in dictum non consectetur a. Id venenatis a
+condimentum vitae sapien pellentesque habitant morbi. At tempor commodo
+ullamcorper a lacus vestibulum. Lacus vestibulum sed arcu non. Potenti
+nullam ac tortor vitae purus faucibus ornare suspendisse sed. Suspendisse
+potenti nullam ac tortor vitae purus faucibus ornare. Et leo duis ut
+diam quam nulla porttitor massa. Suspendisse faucibus interdum posuere
+lorem ipsum. Ut sem viverra aliquet eget sit amet tellus. Semper risus
+in hendrerit gravida rutrum quisque non tellus orci.
+
+## Pseudo-fusion filter
+Eu turpis egestas pretium aenean pharetra magna ac placerat. Sem
+nulla pharetra diam sit amet. Posuere lorem ipsum dolor sit amet
+consectetur. Nisl condimentum id venenatis a condimentum vitae
+sapien. Eget duis at tellus at urna condimentum mattis pellentesque
+id. Odio tempor orci dapibus ultrices in iaculis nunc sed. Leo a diam
+sollicitudin tempor. Eget nunc scelerisque viverra mauris. Curabitur vitae
+nunc sed velit. Volutpat diam ut venenatis tellus in metus. Nec feugiat
+in fermentum posuere urna nec tincidunt praesent semper. Ipsum nunc
+aliquet bibendum enim facilisis. Morbi tempus iaculis urna id. Tellus
+in metus vulputate eu scelerisque. Eu turpis egestas pretium aenean
+pharetra magna ac placerat.
 
 ## Citing Poreplex
 A pre-print is going to be released soon.
+
