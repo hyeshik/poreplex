@@ -1,6 +1,6 @@
 # Poreplex
-Signal-level preprocessor for Oxford Nanopore direct RNA sequencing
-(DRS) data. Poreplex transforms the data more accessible to RNA Biology.
+Signal-level preprocessor for Oxford Nanopore direct RNA sequencing (DRS) data. 
+Poreplex transforms the data into a more accessible format for RNA Biology.
 
 ## Features
 * Demultiplexing barcoded direct RNA sequencing libraries
@@ -8,14 +8,15 @@ Signal-level preprocessor for Oxford Nanopore direct RNA sequencing
 * Pseudo-fusion read filtering
 * Basecalling with ONT `albacore` (even faster than `albacore` itself)
 * Live basecalling and processing
-* Real-time sequenced read alignments with `minimap2`
+* Real-time read alignments with `minimap2`
 * Organizing data in <100 files
 
 ## Installation
 Poreplex requires Python 3.5+ and [pip](http://pypi.python.org/pypi/pip) to install.
 This `pip` command installs `poreplex` with its essential dependencies. Currently,
-you need to install `pomegranate` manually before installing poreplex due to the
-memory leakage in the released versions of `pomegranate`.
+you need to install `pomegranate` manually before installing poreplex due to a
+memory leakage issue in the released versions of `pomegranate`. You may use the
+following command.
 
 ```bash
 pip install cython && pip install git+https://github.com/jmschrei/pomegranate.git
@@ -30,30 +31,29 @@ pip install 'poreplex[full]'
 ```
 
 ### Additional (Optional) Dependency
-Poreplex requires the FAST5 files basecalled using
-[ONT albacore](https://community.nanoporetech.com/downloads) as inputs.
+As its inputs, Poreplex requires the FAST5 files that were basecalled using
+[ONT albacore](https://community.nanoporetech.com/downloads) in advance.
 Alternatively, poreplex can also internally call `albacore` during the
-processing without the prior basecalling if the `albacore` package is
+processing without a prior basecalling if the `albacore` package is
 available from the environment.
 
 ## Quick Start
-Produce FASTQ files with 3′ adapter sequences removed from a directory
-containing a bunch of FAST5 files.
+Produce FASTQ files without 3′ adapter sequences from a bunch of FAST5 files.
 
 ```bash
 poreplex -i path/to/fast5 -o path/to/output --trim-adapter
 ```
 
-Four barcoded direct RNA sequencing libraries (see below for details)
-were pooled and sequenced together. Trim 3′ adapters and demultiplex
-the reads into separate FASTQ files.
+Four direct RNA sequencing libraries can be barcoded, pooled and sequenced 
+together. (see below for details) Porplex can demultiplex the librariess into 
+separate FASTQ files.
 
 ```bash
 poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding
 ```
 
-In addition to the above, create directories containing hard-links to
-the original FAST5 files organized separately by the barcodes.
+In addition, Poreplex can create directories containing hard-links to
+the original FAST5 files, organized separately by the barcodes.
 
 ```bash
 poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --fast5
@@ -75,7 +75,7 @@ poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --albacor
 
 One may want to output *aligned* reads directly to BAM files instead of
 FASTQ outputs. Poreplex streams the processed reads to `minimap2` and update
-the BAM outputs real-time. An pre-built index (not a FASTA) generated using
+the BAM outputs real-time. A pre-built index (not a FASTA) generated using
 `minimap2` must be provided for this.
 
 ```bash
@@ -85,7 +85,7 @@ poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --albacor
 
 By default, `poreplex` discards pseudo-fusion reads which may originate
 from insufficiently segmented signals. You can suppress the filtering
-by an option.
+by a switch.
 
 ```bash
 poreplex -i path/to/fast5 -o path/to/output --keep-unsplit
@@ -95,7 +95,7 @@ poreplex -i path/to/fast5 -o path/to/output --keep-unsplit
 ONT direct RNA sequencing libraries are prepared by subsequently attaching
 two different 3' adapters, [RTA and RMX](https://community.nanoporetech.com/protocols/sequence-specific-direct-rna-sequencing/v/drss_9035_v1_revg_11may2017/overview-of-the-direct-rna),
 respectively. Both are double-stranded DNAs with Y-burged ends on the
-3'-sides. Poreplex barcoded libraries can be built with modified versions of
+3'-sides. Barcoded libraries for Poreplex can be built with modified versions of
 RTA adapters. Unlike in the DNA sequencing libraries, `poreplex` demultiplexes
 in signal-level to ensure the highest accuracy. The distribution contains
 demultiplexer models pre-trained with four different DNA barcodes.
