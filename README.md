@@ -13,7 +13,7 @@ Poreplex transforms the data into a more accessible format for RNA Biology.
 * Organizing data in <100 files
 
 <p align="center">
-<img src="https://cowork.narrykim.org/nanopore/octopus/raw/master/doc/images/dashboard.gif">
+<img src="https://cowork.narrykim.org/nanopore/octopus/raw/master/doc/images/dashboard.gif" width="480px">
 </p>
 
 ## Installation
