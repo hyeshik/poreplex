@@ -541,6 +541,8 @@ class ProcessingSession:
             for task in asyncio.Task.all_tasks():
                 if not (task.done() or task.cancelled()):
                     try:
+                        try: task.cancel()
+                        except: pass
                         sess.loop.run_until_complete(task)
                     except CancelledError:
                         errprint('\nInterrupted')
