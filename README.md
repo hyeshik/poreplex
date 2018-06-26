@@ -203,6 +203,35 @@ aliquet bibendum enim facilisis. Morbi tempus iaculis urna id. Tellus
 in metus vulputate eu scelerisque. Eu turpis egestas pretium aenean
 pharetra magna ac placerat.
 
+## Output formats
+
+### FASTQ
+Mauris pharetra et ultrices neque ornare aenean euismod elementum. Quis
+ipsum suspendisse ultrices gravida dictum fusce ut. Pharetra pharetra
+massa massa ultricies mi quis hendrerit dolor.
+
+### FAST5
+Vel quam elementum pulvinar etiam non quam lacus suspendisse. Sed risus
+ultricies tristique nulla. Non sodales neque sodales ut etiam sit amet
+nisl purus.
+
+### BAM
+Sollicitudin ac orci phasellus egestas. Diam in arcu cursus euismod
+quis. Sit amet commodo nulla facilisi. Sollicitudin aliquam ultrices
+sagittis orci a scelerisque purus semper.
+
+### Nanopolish database
+Leo a diam sollicitudin tempor id eu nisl nunc mi. Euismod quis viverra
+nibh cras pulvinar mattis nunc sed. Gravida cum sociis natoque penatibus
+et. Ligula ullamcorper malesuada proin libero nunc consequat interdum
+varius sit. A iaculis at erat pellentesque adipiscing commodo.
+
+### Basecalled events tables
+Quisque id diam vel quam elementum pulvinar etiam non quam. Laoreet
+suspendisse interdum consectetur libero id faucibus nisl tincidunt
+eget. In est ante in nibh mauris. Pellentesque elit eget gravida cum
+sociis natoque penatibus.
+
 ## Citing Poreplex
 A pre-print is going to be released soon.
 

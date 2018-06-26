@@ -20,10 +20,11 @@
 # THE SOFTWARE.
 #
 
-from pysam import BGZFile
+from pysam import BGZFile, faidx
 from glob import glob
 from functools import partial
 from collections import defaultdict
+from shutil import copyfileobj
 import h5py
 import numpy as np
 import logging
@@ -54,7 +55,12 @@ class FASTQWriter:
     def write_sequences(self, procresult):
         for entry in procresult:
             if entry.get('fastq') is not None:
-                formatted = ''.join('@{}\n{}\n+\n{}\n'.format(entry['read_id'], *entry['fastq']))
+                seq, qual, adapter_length = entry['fastq']
+                if adapter_length > 0:
+                    seq = seq[:-adapter_length]
+                    qual = qual[:-adapter_length]
+
+                formatted = '@{}\n{}\n+\n{}\n'.format(entry['read_id'], seq, qual)
                 self.streams[entry['label']].write(formatted.encode('ascii'))
 
 
@@ -131,6 +137,50 @@ class SequencingSummaryWriter:
                         if f == 'label' else entry[f]
                         for f in self.SUMMARY_OUTPUT_FIELDS],
                       file=self.file, sep='\t')
+
+
+class NanopolishReadDBWriter:
+
+    def __init__(self, outputdir, labelmapping):
+        self.labelmapping = labelmapping
+        self.outputdir = os.path.join(outputdir, 'nanopolish')
+        self.seqfiles, self.dbfiles = self.open_streams()
+
+    def open_streams(self):
+        seqfiles, dbfiles = {}, {}
+        for groupid, name in self.labelmapping.items():
+            filepath = os.path.join(self.outputdir, name + '.fasta')
+            seqfiles[groupid] = open(filepath, 'w')
+            dbfiles[groupid] = open(filepath + '.index.readdb', 'w')
+        return seqfiles, dbfiles
+
+    def close(self):
+        for groupid, f in list(self.seqfiles.items()):
+            f.close()
+            del self.seqfiles[groupid]
+
+        for groupid, f in list(self.dbfiles.items()):
+            f.close()
+            del self.dbfiles[groupid]
+
+        # Create bgzipped-fasta and indices
+        for groupid, name in self.labelmapping.items():
+            inputfile = os.path.join(self.outputdir, name + '.fasta')
+            if os.path.getsize(inputfile) > 0:
+                bgzippedfile = inputfile + '.index'
+                copyfileobj(open(inputfile, 'rb'), BGZFile(bgzippedfile, 'w'))
+                faidx(bgzippedfile)
+
+    def write_sequences(self, procresult):
+        for entry in procresult:
+            if entry.get('fastq') is not None:
+                formatted = '>{}\n{}\n'.format(entry['read_id'], entry['fastq'][0])
+                self.seqfiles[entry['label']].write(formatted)
+
+                fast5_relpath = os.path.join('..', 'fast5', self.labelmapping[entry['label']],
+                                             entry['filename'])
+                formatted = '{}\t{}\n'.format(entry['read_id'], fast5_relpath)
+                self.dbfiles[entry['label']].write(formatted)
 
 
 class FinalSummaryTracker:

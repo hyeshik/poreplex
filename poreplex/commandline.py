@@ -34,13 +34,28 @@ from .pipeline import ProcessingSession
 from .alignment_writer import check_minimap2_index
 from .utils import *
 
+VERSION_STRING = """\
+poreplex version {version}
+Written by Hyeshik Chang <hyeshik@snu.ac.kr>.
+
+Copyright (c) 2018 Institute for Basic Science""".format(version=__version__)
 
 def show_banner():
     print("""
 \x1b[1mPoreplex\x1b[0m version {version} by Hyeshik Chang <hyeshik@snu.ac.kr>
-- Makes nanopore direct RNA sequencing data friendlier to RNA Biology
+- Cuts nanopore direct RNA sequencing data into bite-size pieces for RNA Biology
 """.format(version=__version__))
 
+class VersionAction(argparse.Action):
+
+    def __init__(self, option_strings, dest, default=None, required=False,
+                 help=None, metavar=None):
+        super(VersionAction, self).__init__(
+            option_strings=option_strings, dest=dest, nargs=0, help=help)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        print(VERSION_STRING)
+        parser.exit()
 
 def load_config(args):
     presets_dir = os.path.join(os.path.dirname(__file__), 'presets')
@@ -99,6 +114,7 @@ def create_output_directories(config):
     conditional_subdirs = [
         ('fastq_output', 'fastq'),
         ('fast5_output', 'fast5'),
+        ('nanopolish_output', 'nanopolish'),
         ('minimap2_index', 'bam'),
         ('dump_adapter_signals', 'adapter-dumps'),
         ('dump_basecalls', 'events'),
@@ -255,8 +271,9 @@ def main(args):
     config['dump_adapter_signals'] = args.dump_adapter_signals
     config['dump_basecalls'] = args.dump_basecalled_events
     config['fastq_output'] = args.align is None or args.fastq
-    config['fast5_output'] = args.fast5 or args.symlink_fast5
+    config['fast5_output'] = args.fast5 or args.symlink_fast5 or args.nanopolish
     config['fast5_always_symlink'] = args.symlink_fast5
+    config['nanopolish_output'] = args.nanopolish
     config['trim_adapter'] = args.trim_adapter
     config['minimap2_index'] = args.align if args.align else None
     config['output_names'] = setup_output_name_mapping(config)
@@ -336,6 +353,8 @@ def __main__():
     group.add_argument('--symlink-fast5', default=False, action='store_true',
                        help='create symbolic links to FAST5 files in output directories '
                             'even when hard linking is possible')
+    group.add_argument('--nanopolish', default=False, action='store_true',
+                       help='create a nanopolish readdb to enable access from nanopolish')
     group.add_argument('--dump-adapter-signals', default=False, action='store_true',
                        help='dump adapter signal dumps for training')
     group.add_argument('--dump-basecalled-events', default=False, action='store_true',
@@ -359,6 +378,8 @@ def __main__():
                        help='temporary directory for intermediate data')
     group.add_argument('--batch-chunk', default=128, type=int, metavar='SIZE',
                        help='number of files in a single batch (default: 128)')
+    group.add_argument('--version', action=VersionAction,
+                       help="show program's version number and exit")
     group.add_argument('-h', '--help', action='help',
                        help='show this help message and exit')
 

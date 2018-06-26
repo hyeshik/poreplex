@@ -241,7 +241,7 @@ class SignalAnalysis:
             self.metainfo['mean_qscore'] = bcall_summary['mean_qscore']
             self.metainfo['num_events'] = bcall_summary['num_events']
 
-            self.sequence = bcall.get_called_sequence('template')[1:]
+            self.sequence = bcall.get_called_sequence('template')[1:] + (0,)
 
             return pd.DataFrame(events)
 
@@ -258,7 +258,7 @@ class SignalAnalysis:
         self.metainfo['mean_qscore'] = bcall['mean_qscore']
         self.metainfo['num_events'] = bcall['called_events']
 
-        self.sequence = bcall['sequence'], bcall['qstring']
+        self.sequence = bcall['sequence'], bcall['qstring'], 0
         return bcall['events']
 
     def compute_scaling_parameters(self, events):
@@ -396,9 +396,7 @@ class SignalAnalysis:
         if adapter_basecall_length > len(self.sequence[0]):
             raise PipelineHandledError('basecall_table_incomplete')
         elif adapter_basecall_length > 0:
-            self.sequence = (
-                self.sequence[0][:-adapter_basecall_length],
-                self.sequence[1][:-adapter_basecall_length])
+            self.sequence = self.sequence[0], self.sequence[1], adapter_basecall_length
 
     def push_barcode_signal(self, events, segments):
         adapter_events = events.iloc[slice(*segments['adapter'])]

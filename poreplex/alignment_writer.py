@@ -139,9 +139,13 @@ class AlignmentWriter:
             yield (name, flag, h.ctg, h.r_st + 1, h.mapq, fullcigar, '*',
                    0, 0, seq_f, qual_f, 'NM:i:{}'.format(h.NM))
 
-    def map_and_write(self, muxid, name, seq, qual):
+    def map_and_write(self, muxid, name, seq, qual, adapter_length):
         writer = self.writers[muxid]
         mapped_seqname = None
+        if adapter_length > 0:
+            seq = seq[:-adapter_length]
+            qual = qual[:-adapter_length]
+
         for row in self.map(name, seq, qual):
             if mapped_seqname is None:
                 mapped_seqname = row[2]
