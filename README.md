@@ -7,7 +7,7 @@ Poreplex transforms the data into a more accessible format for RNA Biology.
 * 3′ Adapter sequence trimming
 * Pseudo-fusion read filtering
 * Basecalling with ONT `albacore` (even faster than `albacore` itself)
-* Live basecalling and processing
+* Live basecalling and processing *during* the sequencing
 * Real-time read alignments with `minimap2`
 * Full-screen dashboard view for real-time reports
 * Organizing data in <100 files
