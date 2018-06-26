@@ -295,8 +295,8 @@ def main(args):
 def __main__():
     parser = argparse.ArgumentParser(
         prog='poreplex', add_help=False,
-        description='Makes nanopore direct RNA sequencing data '
-                    'friendlier to RNA Biology')
+        description='Cuts nanopore direct RNA sequencing data '
+                    'into bite-size pieces for RNA Biology')
 
     group = parser.add_argument_group('Data Settings')
     group.add_argument('-i', '--input', required=True, metavar='DIR',
