@@ -4,8 +4,8 @@ Poreplex transforms the data into a more accessible format for RNA Biology.
 
 ## Features
 * Demultiplexing barcoded direct RNA sequencing libraries
-* 3′ Adapter sequence trimming
-* Pseudo-fusion read filtering
+* Trimming 3′ adapter sequences
+* Filtering pseudo-fusion reads
 * Basecalling with ONT `albacore` (even faster than `albacore` itself)
 * Live basecalling and processing *during* the sequencing
 * Real-time read alignments with `minimap2`
@@ -135,7 +135,18 @@ BC4 Oligo B: 5'-GAGGCGAGCGGTCAATTTTGGTAGAAGCGACCCTCTTCTGAAGGAGGTTTTTTTTTT-3'
 ```
 
 ## Basecalling with ONT Albacore
-Lorem ipsum dolor sit amet.
+Most studies requiring signal-level analysis need re-basecalling with
+the ONT `albacore` because the live basecaller equipped in the MinKNOW
+does not generate the event tables in the FAST5 files. `Poreplex` can
+run internally call the basecaller core routines of `albacore` directly
+to yield the sequences and tables for the downstream analyses. In fact,
+running `albacore` via `poreplex` is remarkably faster than running
+`albacore` itself in the multi-core machines thanks to its more efficient
+scheduling of the computational loads.
+
+<p align="center">
+<img src="https://cowork.narrykim.org/nanopore/octopus/raw/master/doc/images/poreplex-albacore-benchmark.jpg" width="520px">
+</p>
 
 ## Live Basecalling and Processing
 Lorem ipsum dolor sit amet.
