@@ -220,6 +220,18 @@ def test_inputs_and_outputs(config):
         except:
             errx('ERROR: Could not load a minimap2 index from {}.'.format(config['minimap2_index']))
 
+def fix_options(config):
+    printed_any = False
+
+    if config['dashboard'] and not config['minimap2_index']:
+        errprint('WARNING: Dashboard is turned off because it is not informative '
+                 'without sequence alignments.')
+        config['dashboard'] = False
+        printed_any = True
+
+    if printed_any:
+        errprint('')
+
 def main(args):
     if not args.quiet:
         show_banner()
@@ -248,6 +260,8 @@ def main(args):
     config['trim_adapter'] = args.trim_adapter
     config['minimap2_index'] = args.align if args.align else None
     config['output_names'] = setup_output_name_mapping(config)
+
+    fix_options(config)
 
     test_inputs_and_outputs(config)
     create_output_directories(config)

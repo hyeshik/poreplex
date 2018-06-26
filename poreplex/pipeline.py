@@ -466,7 +466,7 @@ class ProcessingSession:
                                        'progress', 'mapped_rate',
                                        self.config['analysis_start_delay'],
                                        aliases)
-        view.start(self.loop)
+        view.start(self.loop, bool(self.config['minimap2_index']))
         return view
 
     def terminate_executors(self):

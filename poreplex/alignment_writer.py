@@ -154,12 +154,11 @@ class AlignmentWriter:
         unmapped_counts = defaultdict(int)
 
         for result in results:
-            label = result.get('label')
+            label = result.get('label', 'fail')
 
-            if 'fastq' not in result or 'read_id' not in result:
+            if result.get('fastq') is None or 'read_id' not in result:
                 failed_counts[label] += 1
             else:
-                label = result['label'] if result.get('label') is not None else 'failed'
                 mapped = self.map_and_write(label, result['read_id'], *result['fastq'])
 
                 if mapped == '*':

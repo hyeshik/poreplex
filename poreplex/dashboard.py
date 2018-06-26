@@ -164,7 +164,7 @@ class DashboardView:
     trstats_view_length = 50
 
     label_readstats_total = ('grpstatsname', 'Total')
-    label_readstats_failed = ('grpstatsname', 'Non-basecalled')
+    label_readstats_failed = ('grpstatsname', 'Failed')
     label_readstats_mapped = ('grpstatsname', 'Mapped')
     label_readstats_unmapped = ('grpstatsname', 'Non-mapped')
 
@@ -221,10 +221,14 @@ class DashboardView:
 
     def exit_on_q(self, key):
         if key in ('q', 'Q'):
-            self.urwid_loop.stop()
-            self.session.stop('REQUEST')
+            self.stop()
 
-    def build_widgets(self):
+    def stop(self):
+        self.urwid_loop.stop()
+        self.session.dashboard = None
+        self.session.stop('REQUEST')
+
+    def build_widgets(self, will_align):
         mainbody = self.build_mainbody_widgets()
         header = self.build_header_widgets()
         footer = self.build_footer_widgets()
@@ -232,7 +236,7 @@ class DashboardView:
         frame = urwid.Frame(mainbody, header=header, footer=footer)
         frame = urwid.AttrWrap(frame, 'body')
 
-        if self.analysis_delay > 0:
+        if self.analysis_delay > 0 and will_align:
             self.widget_under_modal = frame
             return self.add_wait_notice_widget(frame, self.analysis_delay)
         else:
@@ -258,7 +262,7 @@ class DashboardView:
             BidiJustifiedText([('grpstatsname', label),
                                ('grpstatscount', '-')], wrap='any'))
         text_elements = {'total': genrow('Total'), 'unmapped': genrow('Non-mapped'),
-                         'failed': genrow('Non-basecalled'), 'mapped': genrow('Mapped')}
+                         'failed': genrow('Failed'), 'mapped': genrow('Mapped')}
         top_box = ReadOnlyListBox(
             urwid.SimpleListWalker([
                 text_elements['total'],
@@ -378,8 +382,8 @@ class DashboardView:
         ])
         return urwid.AttrWrap(instruction_line, 'footer')
 
-    def start(self, loop):
-        widgets = self.build_widgets()
+    def start(self, loop, will_align):
+        widgets = self.build_widgets(will_align)
 
         uaioloop = urwid.AsyncioEventLoop(loop=loop)
         self.urwid_loop = urwid.MainLoop(
@@ -473,11 +477,8 @@ class DashboardView:
                                    ('grpstatscount', format(total, ',d'))])
         widgets['mapped'].set_text([self.label_readstats_mapped,
                                    ('grpstatscount', format(mapped, ',d'))])
-        # BC or passed groups can't never get any count for this.
-        # Keep the initial message for the less confusion.
-        if failed > 0:
-            widgets['failed'].set_text([self.label_readstats_failed,
-                                        ('grpstatscount', format(failed, ',d'))])
+        widgets['failed'].set_text([self.label_readstats_failed,
+                                    ('grpstatscount', format(failed, ',d'))])
         widgets['unmapped'].set_text([self.label_readstats_unmapped,
                                       ('grpstatscount', format(unmapped, ',d'))])
 
