@@ -9,7 +9,12 @@ Poreplex transforms the data into a more accessible format for RNA Biology.
 * Basecalling with ONT `albacore` (even faster than `albacore` itself)
 * Live basecalling and processing
 * Real-time read alignments with `minimap2`
+* Full-screen dashboard view for real-time reports
 * Organizing data in <100 files
+
+<p align="center">
+<img src="/nanopore/octopus/raw/master/doc/images/dashboard.gif">
+</p>
 
 ## Installation
 Poreplex requires Python 3.5+ and [pip](http://pypi.python.org/pypi/pip) to install.
@@ -63,14 +68,14 @@ In case the FAST5 files are not basecalled yet, just a switch lets
 `poreplex` call `albacore` internally. Multicore machines help.
 
 ```bash
-poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --fast5 --albacore-onthefly --parallel 40
+poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --fast5 --basecall --parallel 40
 ```
 
 With the `--live` switch, All tasks can be processed as soon as reads
 are produced from MinKNOW.
 
 ```bash
-poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --albacore-onthefly --parallel 40 --live
+poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --basecall --parallel 40 --live
 ```
 
 One may want to output *aligned* reads directly to BAM files instead of
@@ -79,8 +84,15 @@ the BAM outputs real-time. A pre-built index (not a FASTA) generated using
 `minimap2` must be provided for this.
 
 ```bash
-poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --albacore-onthefly \
+poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --basecall \
   --parallel 40 --live --align GRCz11-transcriptome.mmidx
+```
+
+More vibrant feedback is provided if you turn on the dashboard switch.
+
+```bash
+poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --basecall \
+  --parallel 40 --live --align GRCz11-transcriptome.mmidx --dashboard
 ```
 
 By default, `poreplex` discards pseudo-fusion reads which may originate
