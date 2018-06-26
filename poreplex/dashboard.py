@@ -164,9 +164,9 @@ class DashboardView:
     trstats_view_length = 50
 
     label_readstats_total = ('grpstatsname', 'Total')
-    label_readstats_failed = ('grpstatsname', 'Failed')
+    label_readstats_failed = ('grpstatsname', 'Non-basecalled')
     label_readstats_mapped = ('grpstatsname', 'Mapped')
-    label_readstats_unmapped = ('grpstatsname', 'Unmapped')
+    label_readstats_unmapped = ('grpstatsname', 'Non-mapped')
 
     label_overview_total = ('overview label', 'Total reads: ')
     label_overview_inqueue = ('overview label', 'In queue: ')
@@ -257,8 +257,8 @@ class DashboardView:
         genrow = lambda label: (
             BidiJustifiedText([('grpstatsname', label),
                                ('grpstatscount', '-')], wrap='any'))
-        text_elements = {'total': genrow('Total'), 'unmapped': genrow('Unmapped'),
-                         'failed': genrow('Failed'), 'mapped': genrow('Mapped')}
+        text_elements = {'total': genrow('Total'), 'unmapped': genrow('Non-mapped'),
+                         'failed': genrow('Non-basecalled'), 'mapped': genrow('Mapped')}
         top_box = ReadOnlyListBox(
             urwid.SimpleListWalker([
                 text_elements['total'],
@@ -509,16 +509,3 @@ def load_aliases(filename):
             ['alias'].to_dict()
     )
 
-#if V
-## ===
-#READSIM = FakeReadSimulator('cel-readcounts.txt')
-## ===
-#
-#contigaliases = pd.read_table('cel-aliases.txt', names=['contig', 'alias'], index_col=0)['alias'].to_dict()
-#
-#loop = asyncio.get_event_loop()
-#fakesess = FakeProcessingSession()
-#loop.create_task(fakesess.entropy_generator())
-#reportview = DashboardView(fakesess, readgroups, 'demux_rate', 'mapped_rate', contigaliases)
-#reportview.run(loop)
-#
