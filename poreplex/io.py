@@ -28,7 +28,7 @@ import h5py
 import numpy as np
 import logging
 import os
-from errno import EXDEV
+from errno import EXDEV, EEXIST
 
 
 class FASTQWriter:
@@ -82,17 +82,30 @@ def link_fast5_files(config, results):
             except FileExistsError:
                 pass
 
-        if not symlinkfirst and (original_dir, link_dir) not in blacklist_hardlinks:
-            try:
-                os.link(original_fast5, link_path)
-            except OSError as exc:
-                if exc.errno != EXDEV:
-                    raise
-                blacklist_hardlinks.add((original_dir, link_dir))
-            else:
-                continue
+        for retry in [0, 1]:
+            if not symlinkfirst and (original_dir, link_dir) not in blacklist_hardlinks:
+                try:
+                    os.link(original_fast5, link_path)
+                except OSError as exc:
+                    if exc.errno == EEXIST:
+                        os.unlink(link_path)
+                        continue
+                    elif exc.errno != EXDEV:
+                        raise
+                    blacklist_hardlinks.add((original_dir, link_dir))
+                else:
+                    break
 
-        os.symlink(os.path.abspath(original_fast5), link_path)
+            try:
+                os.symlink(os.path.abspath(original_fast5), link_path)
+            except OSError as exc:
+                if exc.errno == EEXIST:
+                    os.unlink(link_path)
+                    continue
+                else:
+                    raise
+            else:
+                break
 
 
 class SequencingSummaryWriter:
