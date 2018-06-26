@@ -171,7 +171,7 @@ class ProcessingSession:
 
     def errx(self, message):
         if self.running:
-            errprint(message)
+            errprint(message, end='')
             self.stop('ERROR')
 
     def show_message(self, message):
@@ -180,7 +180,8 @@ class ProcessingSession:
 
     def stop(self, signalname='unknown'):
         if self.running:
-            errprint("\nTermination in process. Please wait for a moment.")
+            if signalname in ['SIGTERM', 'SIGINT']:
+                errprint("\nTermination in process. Please wait for a moment.")
             self.running = False
         for task in asyncio.Task.all_tasks():
             task.cancel()
@@ -534,6 +535,8 @@ class ProcessingSession:
                         logging.error(line)
 
             sess.terminate_executors()
+            if sess.dashboard is not None:
+                sess.dashboard.stop()
 
             for task in asyncio.Task.all_tasks():
                 if not (task.done() or task.cancelled()):
@@ -542,13 +545,16 @@ class ProcessingSession:
                     except CancelledError:
                         errprint('\nInterrupted')
                     except Exception as exc:
-                        errprint('\nERROR: ' + str(exc))
+                        if (isinstance(exc, RuntimeError) and
+                                exc.args[0].startswith('Event loop stopped before Future')):
+                            pass
+                        else:
+                            errprint('\nERROR: ' + str(exc))
 
             if not config['quiet'] and sess.scan_finished:
                 if sess.pbar is not None:
                     sess.pbar.finish()
-
-                sess.show_message('\n')
+                    sess.show_message('')
 
                 if sess.reads_found == sess.reads_processed:
                     sess.finalize_results()
