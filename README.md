@@ -147,31 +147,37 @@ the computational loads.
 <img src="https://cowork.narrykim.org/nanopore/octopus/raw/master/doc/images/poreplex-albacore-benchmark.jpg" width="520px">
 </p>
 
-## Live Basecalling and Processing
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
-tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
-veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea
-commodo consequat. Duis aute irure dolor in reprehenderit in voluptate
-velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat
-cupidatat non proident, sunt in culpa qui officia deserunt mollit anim
-id est laborum.
+## Live basecalling and processing
+One can start the `poreplex` pipeline at any time even before the
+sequencing begins. With the `--live` switch turned on, it monitors
+every update in input directories and picks the newly created
+files up for the whole process of the analysis. In the live mode,
+the program keeps running unless a user presses Ctrl-C (in the
+standard progress view) or Q (in the full-screen dashboard view). The
+[inotify](https://pypi.org/project/inotify/) module is required to allow
+`poreplex` to run in the live mode.
+
+In case the points of sequencing and analysis are different,
+a real-time directory synchronization software like [DirSync
+Pro](https://www.dirsyncpro.org/) may help. `Poreplex` detects new files
+introduced by moving or closing a file after writing. Files that are
+made visible by creating hard or symbolic links or changing permissions
+may remain undetected.
 
 ## Real-time sequence alignments 
-Vitae congue eu consequat ac felis donec et odio pellentesque. Eget
-velit aliquet sagittis id consectetur purus. Iaculis at erat
-pellentesque adipiscing commodo elit. Nisi scelerisque eu ultrices
-vitae auctor. Pellentesque diam volutpat commodo sed egestas egestas
-fringilla. Enim nulla aliquet porttitor lacus. Dignissim enim sit amet
-venenatis urna. Eros in cursus turpis massa tincidunt dui ut. Quisque
-sagittis purus sit amet volutpat. Vitae auctor eu augue ut lectus arcu
-bibendum. Eu lobortis elementum nibh tellus molestie nunc non. Sit
-amet justo donec enim diam vulputate ut pharetra. Vestibulum lectus
-mauris ultrices eros in. Varius quam quisque id diam vel quam elementum
-pulvinar etiam. Eget est lorem ipsum dolor sit. Sociis natoque penatibus
-et magnis. Quis ipsum suspendisse ultrices gravida dictum fusce. Tellus
-integer feugiat scelerisque varius morbi. Egestas quis ipsum suspendisse
-ultrices gravida dictum fusce. Nibh tortor id aliquet lectus proin nibh
-nisl condimentum id.
+`Poreplex` aligns the reads to the reference transcriptome using
+`minimap2` and writes the results to BAM files when the index file for
+the reference is provided. Some options that affect the performance of
+the alignments can be specified on generating the `minimap2` index.
+
+```bash
+wget 'ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_28/gencode.v28.transcripts.fa.gz'
+minimap2 -H -k 13 -w 10 -d gencode.v28.transcripts.mmidx gencode.v28.transcripts.fa.gz
+poreplex -i /path/to/input -o /path/output --basecall --align gencode.v28.transcripts.mmidx
+```
+
+By default, switching on the alignments suppresses the FASTQ
+outputs. Those can be recovered by adding `--fastq` to the command line.
 
 ## Real-time reports
 Interdum posuere lorem ipsum dolor sit. Consectetur a erat nam at lectus
