@@ -1,12 +1,12 @@
 flowcell: FLO-MIN106
 kit: SQK-RNA001
 data:
-  MXG3.1: /arena/hyeshik/nanopore-201805/20180509-Mux_v5
+  MXG3.2: /arena/hyeshik/nanopore-data/20180622_0535_Mux_yeast/fast5
 reference_transcriptomes:
-  - [hsa, refs/hsa-all.fa.gz]
-  - [xla, refs/xla-all.fa.gz]
-  - [cel, refs/cel-all.fa.gz]
   - [ath, refs/ath-all.fa.gz]
+  - [hsa, refs/hsa-all.fa.gz]
+  - [sce, refs/sce-all.fa.gz]
+  - [cel, refs/cel-all.fa.gz]
 reference_transcriptome_filtering:
   blacklist_alignment_match_length: 100
 train_data_selection:
@@ -19,10 +19,10 @@ train_data_selection:
   max_adapter_length: 30000
   min_sequence_length: 200
 train_data_transform:
-  trim_adapter_length: 350
+  trim_adapter_length: 300
   test_data_split: 0.2
-  subsample_sizes: [2000, 10000, 20000, 50000, 9999999]
-  final_trim_sizes: [100, 200, 300, 350]
+  subsample_sizes: [50000, 180000]
+  final_trim_sizes: [100, 200, 300]
 training_parameters:
   global:
     ngpu: 2
@@ -49,4 +49,9 @@ training_parameters:
     - [GRU, 64]
     - [Dropout, 0.3]
     - [GRU, 64]
+    - [Dropout, 0.3]
+  LSTM_64_64_03:
+    - [LSTM, 64]
+    - [Dropout, 0.3]
+    - [LSTM, 64]
     - [Dropout, 0.3]

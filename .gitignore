@@ -4,7 +4,10 @@ build
 dist
 old
 *.egg-info
-contrib/eigen
-contrib/eigen.tar.bz2
-contrib/hdf5
-contrib/hdf5.tar.gz
+training/refs/*-all.fa.gz
+training/refs/*.mmidx
+training/refs/*.txt
+training/refs-filtering/*
+training/*.feather
+training/sequences
+training/[A-Z]*

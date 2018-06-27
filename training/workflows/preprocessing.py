@@ -6,7 +6,7 @@ rule preprocess:
         output_dir = os.path.dirname(output[0])
         shell('poreplex --input "{input_dir}" --output "{output_dir}" --parallel {threads} \
                 --dump-adapter-signals --dump-basecalled-events --trim-adapter \
-                --fast5 --symlink-fast5 --albacore-onthefly')
+                --fast5 --symlink-fast5 --basecall')
         shell('touch {output}')
 
 
