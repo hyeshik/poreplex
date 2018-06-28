@@ -235,23 +235,41 @@ detected barcode.
 
 | File name | Description |
 | --------- | ----------- |
-| `fastq/pass.fastq.gz` | All sequences with basecalled and passed the basic quality filters in *poreplex*. With `--barcoding`, the passed sequences that were not detected of a barcode comes to this file |
-| `fastq/BC#.fastq.gz`  | Sequences with identifiable barcode signals |
-| `fastq/fail.fastq.gz` | Too short sequences that could not be calibrated for the signal processing |
-| `fastq/artifact.fastq.gz` | Sequences that were classified as potential artifacts |
+| `fastq/pass.fastq.gz` | All sequences with basecalled and passed the basic quality filters in *poreplex*. With `--barcoding`, the passed sequences that were not detected of a barcode comes to this file. |
+| `fastq/BC#.fastq.gz`  | Sequences with identifiable barcode signals. |
+| `fastq/fail.fastq.gz` | Too short sequences that could not be calibrated for the signal processing. |
+| `fastq/artifact.fastq.gz` | Sequences that were classified as potential artifacts. |
 
 FASTQ outputs are suppressed when BAM outputs are activated with
 the `--align` option. Please add `--fastq` to restore the FASTQ outputs.
 
 ### FAST5
-Vel quam elementum pulvinar etiam non quam lacus suspendisse. Sed risus
-ultricies tristique nulla. Non sodales neque sodales ut etiam sit amet
-nisl purus.
+To reduce the disk I/O, *poreplex* utilizes the links instead of copying
+the original FAST5 to append basecalled results to the file. With the
+`--fast5` option, *poreplex* creates hard links of the original FAST5
+files reorganized in subdirectories representing each processing status
+or barcode. Symbolic links are created in case the hard links are not
+possible or `--symlink-fast5` is specified.
+
+The basecalled events, which are stored in `Analyses/Basecall_1D_00*`
+of the standard FAST5 files, are written to the `events` subdirectory
+instead upon request by `--dump-basecalled-events`. The basecall
+event tables for all reads are accessible through a single HDF5 file,
+`events/inventory.h5`, by the read id. These tables include an
+additional `scaled_mean` column, which contains mean current levels
+scaled to match the ONT's reference
+[pore model](https://github.com/nanoporetech/kmer_models).
 
 ### BAM
-Sollicitudin ac orci phasellus egestas. Diam in arcu cursus euismod
-quis. Sit amet commodo nulla facilisi. Sollicitudin aliquam ultrices
-sagittis orci a scelerisque purus semper.
+The alignments to the reference transcriptome go into BAM files
+inside the `bam` subdirectory. The reference sequences must be
+indexed using `minimap2` before providing it with the `--align`
+option ([see above](#real-time-sequence-alignments)). The BAM
+files are not sorted and not filtered thoroughly. FASTQ or FASTA
+sequence files can be generated from the BAM files without loss
+using [bedtools](http://bedtools.readthedocs.io/en/latest/content/tools/bamtofastq.html).
+Please use these sequence alignments in the BAM files for quality
+checks and sketchy analyses only.
 
 ### Nanopolish database
 Leo a diam sollicitudin tempor id eu nisl nunc mi. Euismod quis viverra
@@ -313,5 +331,5 @@ usage: poreplex -i DIR -o DIR [-c NAME] [--trim-adapter] [--keep-unsplit]
 | `-h`                | `--help`               | show this help message and exit |
 
 ## Citing Poreplex
-A pre-print is going to be released soon.
+A pre-print is going to be uploaded soon.
 
