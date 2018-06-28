@@ -30,7 +30,7 @@ setup(
     name='poreplex',
     packages=['poreplex'],
     version='0.1',
-    description='Squiggle-level data preprocessor for nanopore direct RNA sequencing',
+    description='A versatile sequence read processor for nanopore direct RNA sequencing',
     author='Hyeshik Chang',
     author_email='hyeshik@snu.ac.kr',
     url='https://github.com/hyeshik/poreplex',
