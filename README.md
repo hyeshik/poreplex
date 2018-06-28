@@ -198,15 +198,16 @@ choose a group to show in the window with up and down keys. To stop the
 process and close the dashboard, press Q key at any time.
 
 ## Pseudo-fusion filter
-A read is a snippet from a very long continuous signal from a channel
-in the Oxford Nanopore strand sequencing. In most cases, there should
+In the Oxford Nanopore strand sequencing, a read is a snippet from a
+very long contiguous signal from a channel. In most cases, there should
 be enough gap between two different molecules and the control software
-cuts signals at the end of sequences. But, a tiny fraction of reads
-is found with two or more molecules which can be identified by the
-characteristic signal pattern in the DNA adapters. This phenomenon is
-particularly problematic in the pooled libraries with barcodes and the
-fusion gene studies. In a few runs in our testing, up to 1% of reads
-could be derived from insufficiently segmented signals.
+cuts signals at the end of sequences. However, the gap between strands
+is sometimes not enough. A small fraction of reads is found to carry
+two or more molecules which can be identified by the characteristic
+signal pattern in the DNA adapters. This phenomenon can be particularly
+problematic in the pooled libraries with barcodes and the fusion gene
+studies. In a few runs in our testing, up to 1% of reads could be derived
+from insufficiently segmented signals.
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/hyeshik/poreplex/master/doc/images/pseudo-fusion-signal.jpg" width="640px">
