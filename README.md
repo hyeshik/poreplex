@@ -14,7 +14,7 @@ Poreplex transforms the data into a more accessible format for RNA Biology.
 
 <p align="center">
 <a name="screenshot">
-<img src="https://cowork.narrykim.org/nanopore/octopus/raw/master/doc/images/dashboard.gif" width="480px">
+<img src="https://raw.githubusercontent.com/hyeshik/poreplex/master/doc/images/dashboard.gif" width="480px">
 </a>
 </p>
 
@@ -145,7 +145,7 @@ itself in a multi-core machine thanks to more efficient scheduling of
 the computational loads.
 
 <p align="center">
-<img src="https://cowork.narrykim.org/nanopore/octopus/raw/master/doc/images/poreplex-albacore-benchmark.jpg" width="520px">
+<img src="https://raw.githubusercontent.com/hyeshik/poreplex/master/doc/images/poreplex-albacore-benchmark.jpg" width="520px">
 </p>
 
 ## Live basecalling and processing
