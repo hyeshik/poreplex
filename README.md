@@ -263,7 +263,7 @@ scaled to match the ONT's reference
 ### BAM
 The alignments to the reference transcriptome go into BAM files
 inside the `bam` subdirectory. The reference sequences must be
-indexed using `minimap2` before providing it with the `--align`
+indexed using *minimap2* before providing it with the `--align`
 option ([see above](#real-time-sequence-alignments)). The BAM
 files are not sorted and not filtered thoroughly. FASTQ or FASTA
 sequence files can be generated from the BAM files without loss
@@ -272,16 +272,11 @@ Please use these sequence alignments in the BAM files for quality
 checks and sketchy analyses only.
 
 ### Nanopolish database
-Leo a diam sollicitudin tempor id eu nisl nunc mi. Euismod quis viverra
-nibh cras pulvinar mattis nunc sed. Gravida cum sociis natoque penatibus
-et. Ligula ullamcorper malesuada proin libero nunc consequat interdum
-varius sit. A iaculis at erat pellentesque adipiscing commodo.
-
-### Basecalled events tables
-Quisque id diam vel quam elementum pulvinar etiam non quam. Laoreet
-suspendisse interdum consectetur libero id faucibus nisl tincidunt
-eget. In est ante in nibh mauris. Pellentesque elit eget gravida cum
-sociis natoque penatibus.
+[Nanopolish](https://github.com/jts/nanopolish) provides very convenient
+tools that help signal-level analyses. *Poreplex* provides a set of index
+files that are required to run the *nanopolish* commands. Just skip
+`nanopolish extract` or `nanopolish index` commands in its tutorial,
+and proceed directly to the main steps.
 
 ## Command line options
 
