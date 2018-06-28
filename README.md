@@ -3,17 +3,19 @@ Signal-level preprocessor for Oxford Nanopore direct RNA sequencing (DRS) data.
 Poreplex transforms the data into a more accessible format for RNA Biology.
 
 ## Features
-* Demultiplexing barcoded direct RNA sequencing libraries
+* [Demultiplexing barcoded direct RNA sequencing libraries](#barcoding-direct-rna-sequencing-libraries)
 * Trimming 3′ adapter sequences
-* Filtering pseudo-fusion reads
-* Basecalling with ONT *albacore* (even faster than *albacore* itself)
-* Live basecalling and processing *during* the sequencing
-* Real-time read alignments with *minimap2*
-* Full-screen dashboard view for real-time reports
-* Organizing data in <100 files
+* [Filtering pseudo-fusion reads](#pseudo-fusion-filter)
+* [Basecalling with ONT *albacore*](#basecalling-with-the-ont-albacore) (even faster than *albacore* itself)
+* [Live basecalling and processing *during* the sequencing](#live-basecalling-and-processing)
+* [Real-time read alignments with *minimap2*](#real-time-sequence-alignments)
+* [Full-screen dashboard view for real-time reports](#real-time-reports)
+* [Various ready-to-use output formats](#output-formats)
 
 <p align="center">
+<a name="screenshot">
 <img src="https://cowork.narrykim.org/nanopore/octopus/raw/master/doc/images/dashboard.gif" width="480px">
+</a>
 </p>
 
 ## Installation
@@ -179,21 +181,20 @@ By default, switching on the alignments suppresses the FASTQ
 outputs. Those can be recovered by adding `--fastq` to the command line.
 
 ## Real-time reports
-Interdum posuere lorem ipsum dolor sit. Consectetur a erat nam at lectus
-urna duis convallis convallis. Augue eget arcu dictum varius duis at
-consectetur lorem donec. Elementum nisi quis eleifend quam adipiscing
-vitae proin sagittis nisl. Donec ac odio tempor orci dapibus. Convallis
-tellus id interdum velit laoreet. Tempus imperdiet nulla malesuada
-pellentesque elit eget. Enim nulla aliquet porttitor lacus luctus. Vel
-risus commodo viverra maecenas. Vulputate ut pharetra sit amet aliquam
-id. Velit scelerisque in dictum non consectetur a. Id venenatis a
-condimentum vitae sapien pellentesque habitant morbi. At tempor commodo
-ullamcorper a lacus vestibulum. Lacus vestibulum sed arcu non. Potenti
-nullam ac tortor vitae purus faucibus ornare suspendisse sed. Suspendisse
-potenti nullam ac tortor vitae purus faucibus ornare. Et leo duis ut
-diam quam nulla porttitor massa. Suspendisse faucibus interdum posuere
-lorem ipsum. Ut sem viverra aliquet eget sit amet tellus. Semper risus
-in hendrerit gravida rutrum quisque non tellus orci.
+The results from the real-time alignments with the overall progression of
+the pipeline can be visualized as a [full-screen dashboard view in a text
+terminal](#screenshot). *Poreplex* shows the real-time report when the
+command line includes the `--dashboard` switch along with `--align` for
+the index of the reference transcriptome. The names of mapped sequences
+are shown with the sequence name in the reference *minimap2* index. To
+see them in more familiar names, supply a file containing IDs and names
+with the `--contig-aliases` switch. The files must be a tab-separated
+text file with two columns consists of ID (in the reference index)
+and name (to show in the screen) in a line. The read counts window in
+the middle of the screen represents the summary of reads categorized by
+error status or detected barcodes for multiplexed libraries. Users can
+choose a group to show in the window with up and down keys. To stop the
+process and close the dashboard, press Q key at any time.
 
 ## Pseudo-fusion filter
 Eu turpis egestas pretium aenean pharetra magna ac placerat. Sem
