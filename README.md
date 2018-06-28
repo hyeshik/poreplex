@@ -274,9 +274,10 @@ checks and sketchy analyses only.
 ### Nanopolish database
 [Nanopolish](https://github.com/jts/nanopolish) provides very convenient
 tools that help signal-level analyses. *Poreplex* provides a set of index
-files that are required to run the *nanopolish* commands. Just skip
-`nanopolish extract` or `nanopolish index` commands in its tutorial,
-and proceed directly to the main steps.
+files that are required to run the *nanopolish* commands. Add `--nanopolish`
+to a *poreplex* command line, then just skip `nanopolish extract` or
+`nanopolish index` commands in its tutorial, and proceed directly to
+the main steps.
 
 ## Command line options
 
@@ -327,4 +328,3 @@ usage: poreplex -i DIR -o DIR [-c NAME] [--trim-adapter] [--keep-unsplit]
 
 ## Citing Poreplex
 A pre-print is going to be uploaded soon.
-
