@@ -1,6 +1,7 @@
 # Poreplex
 Signal-level preprocessor for Oxford Nanopore direct RNA sequencing (DRS) data. 
-Poreplex transforms the data into a more accessible format for RNA Biology.
+Poreplex does many preprocessing steps required before the downstream analyses
+for RNA Biology and yields the processed data in the ready-to-use forms.
 
 ## Features
 * [Demultiplexing barcoded direct RNA sequencing libraries](#barcoding-direct-rna-sequencing-libraries)
@@ -197,17 +198,24 @@ choose a group to show in the window with up and down keys. To stop the
 process and close the dashboard, press Q key at any time.
 
 ## Pseudo-fusion filter
-Eu turpis egestas pretium aenean pharetra magna ac placerat. Sem
-nulla pharetra diam sit amet. Posuere lorem ipsum dolor sit amet
-consectetur. Nisl condimentum id venenatis a condimentum vitae
-sapien. Eget duis at tellus at urna condimentum mattis pellentesque
-id. Odio tempor orci dapibus ultrices in iaculis nunc sed. Leo a diam
-sollicitudin tempor. Eget nunc scelerisque viverra mauris. Curabitur vitae
-nunc sed velit. Volutpat diam ut venenatis tellus in metus. Nec feugiat
-in fermentum posuere urna nec tincidunt praesent semper. Ipsum nunc
-aliquet bibendum enim facilisis. Morbi tempus iaculis urna id. Tellus
-in metus vulputate eu scelerisque. Eu turpis egestas pretium aenean
-pharetra magna ac placerat.
+A read is a snippet from a very long continuous signal from a channel
+in the Oxford Nanopore strand sequencing. In most cases, there should
+be enough gap between two different molecules and the control software
+cuts signals at the end of sequences. But, a tiny fraction of reads
+is found with two or more molecules which can be identified by the
+characteristic signal pattern in the DNA adapters. This phenomenon is
+particularly problematic in the pooled libraries with barcodes and the
+fusion gene studies. In a few runs in our testing, up to 1% of reads
+could be derived from insufficiently segmented signals.
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/hyeshik/poreplex/master/doc/images/pseudo-fusion-signal.jpg" width="640px">
+</p>
+
+*Poreplex* detects potential artifacts with multiple appearances of the
+signature of the DNA adapter in a single read. The default parameters
+for the filtering can be too sensitive for some experiments. You can
+disable the pseudo-fusion filter with the `--keep-unsplit` option.
 
 ## Output formats
 
