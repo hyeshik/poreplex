@@ -34,7 +34,7 @@ setup(
     author='Hyeshik Chang',
     author_email='hyeshik@snu.ac.kr',
     url='https://github.com/hyeshik/poreplex',
-    download_url='https://github.com/hyeshik/poreplex/archive/poreplex-0.1.tar.gz',
+    download_url='https://github.com/hyeshik/poreplex/releases',
     include_package_data=True,
     keywords=[
         'nanopore',
@@ -44,7 +44,7 @@ setup(
     ],
     license='MIT',
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 3 - Alpha',
         'Environment :: Console',
         'Intended Audience :: Science/Research',
         'Intended Audience :: Healthcare Industry',
