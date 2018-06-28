@@ -4,7 +4,7 @@ Poreplex does many preprocessing steps required before the downstream analyses
 for RNA Biology and yields the processed data in the ready-to-use forms.
 
 ## Features
-* [Demultiplexing barcoded direct RNA sequencing libraries](#barcoding-direct-rna-sequencing-libraries)
+* [Demultiplexing barcoded *direct RNA* sequencing libraries](#barcoding-direct-rna-sequencing-libraries)
 * Trimming 3′ adapter sequences
 * [Filtering pseudo-fusion reads](#pseudo-fusion-filter)
 * [Basecalling with ONT *albacore*](#basecalling-with-the-ont-albacore) (even faster than *albacore* itself)
@@ -106,10 +106,14 @@ poreplex -i path/to/fast5 -o path/to/output --keep-unsplit
 ```
 
 ## Barcoding direct RNA sequencing libraries
+The official kits and protocols does not support barcoding in the direct RNA
+sequencing yet. *Poreplex* enables pooling multiple libraries into a single
+DRS run.
+
 ONT direct RNA sequencing libraries are prepared by subsequently attaching
 two different 3' adapters, [RTA and RMX](https://community.nanoporetech.com/protocols/sequence-specific-direct-rna-sequencing/v/drss_9035_v1_revg_11may2017/overview-of-the-direct-rna),
 respectively. Both are double-stranded DNAs with Y-burged ends on the
-3'-sides. Barcoded libraries for Poreplex can be built with modified versions of
+3'-sides. Barcoded libraries for *poreplex* can be built with modified versions of
 RTA adapters. Unlike in the DNA sequencing libraries, *poreplex* demultiplexes
 in signal-level to ensure the highest accuracy. The distribution contains
 demultiplexer models pre-trained with four different DNA barcodes.
@@ -224,9 +228,20 @@ disable the pseudo-fusion filter with the `--keep-unsplit` option.
 ## Output formats
 
 ### FASTQ
-Mauris pharetra et ultrices neque ornare aenean euismod elementum. Quis
-ipsum suspendisse ultrices gravida dictum fusce ut. Pharetra pharetra
-massa massa ultricies mi quis hendrerit dolor.
+Sequences and quality scores are written to [bgzip](http://www.htslib.org/doc/bgzip.html)-compressed
+FASTQ files in the `fastq` subdirectory. Each FASTQ file contains the
+entire sequences of a group classified by processing status and
+detected barcode.
+
+| File name | Description |
+| --------- | ----------- |
+| `fastq/pass.fastq.gz` | All sequences with basecalled and passed the basic quality filters in *poreplex*. With `--barcoding`, the passed sequences that were not detected of a barcode comes to this file |
+| `fastq/BC#.fastq.gz`  | Sequences with identifiable barcode signals |
+| `fastq/fail.fastq.gz` | Too short sequences that could not be calibrated for the signal processing |
+| `fastq/artifact.fastq.gz` | Sequences that were classified as potential artifacts |
+
+FASTQ outputs are suppressed when BAM outputs are activated with
+the `--align` option. Please add `--fastq` to restore the FASTQ outputs.
 
 ### FAST5
 Vel quam elementum pulvinar etiam non quam lacus suspendisse. Sed risus
@@ -249,6 +264,53 @@ Quisque id diam vel quam elementum pulvinar etiam non quam. Laoreet
 suspendisse interdum consectetur libero id faucibus nisl tincidunt
 eget. In est ante in nibh mauris. Pellentesque elit eget gravida cum
 sociis natoque penatibus.
+
+## Command line options
+
+```bash
+usage: poreplex -i DIR -o DIR [-c NAME] [--trim-adapter] [--keep-unsplit]
+                [--barcoding] [--basecall] [--align INDEXFILE] [--live]
+                [--live-delay SECONDS] [--fastq] [--fast5] [--symlink-fast5]
+                [--nanopolish] [--dump-adapter-signals]
+                [--dump-basecalled-events] [--dashboard]
+                [--contig-aliases FILE] [-q] [-y] [-p COUNT] [--tmpdir DIR]
+                [--batch-chunk SIZE] [--version] [-h]
+```
+
+| Short option        | Long option            | Description                    |
+| ------------------- | ---------------------- | ------------------------------ |
+| **Data Settings** |||
+| `-i DIR`            | `--input DIR`          | path to the directory with the input FAST5 files (required) |
+| `-o DIR`            | `--output DIR`         | output directory path (Required) |
+| `-c NAME`           | `--config NAME`        | path to signal processing configuration |
+| **Basic Processing Options** |||
+|                     | `--trim-adapter`       | trim 3′ adapter sequences from FASTQ outputs |
+|                     | `--keep-unsplit`       | don't remove unsplit reads fused of two or more RNAs in output |
+| **Optional Analyses** |||
+|                     | `--barcoding`          | sort barcoded reads into separate outputs |
+|                     | `--basecall`           | call the ONT albacore for basecalling on-the-fly |
+|                     | `--align INDEXFILE`    | align basecalled reads using minimap2 and create BAM files |
+| **Live Mode** |||
+|                     | `--live`               | monitor new files in the input directory |
+|                     | `--live-delay SECONDS` | time to delay the start of analysis in live mode (default: 60) |
+| **Output Options** |||
+|                     | `--fastq`              | write to FASTQ files even when BAM files are produced |
+|                     | `--fast5`              | link or copy FAST5 files to separate output directories |
+|                     | `--symlink-fast5`      | create symbolic links to FAST5 files in output directories even when hard linking is possible |
+|                     | `--nanopolish`         | create a nanopolish readdb to enable access from nanopolish |
+|                     | `--dump-adapter-signals` | dump adapter signal dumps for training |
+|                     | `--dump-basecalled-events` | dump basecalled events to the output |
+| **User Interface** |||
+|                     | `--dashboard`          | show the full screen dashboard |
+|                     | `--contig-aliases FILE` | path to a tab-separated text file for aliases to show as a contig names in the dashboard (see README) |
+| `-q`                | `--quiet`              | suppress non-error messages |
+| `-y`                | `--yes`                | suppress all questions |
+| **Pipeline Options** |||
+| `-p COUNT`          | `--parallel COUNT`     | number of worker processes (default: 1) |
+|                     | `--tmpdir DIR`         | temporary directory for intermediate data |
+|                     | `--batch-chunk SIZE`   | number of files in a single batch (default: 128) |
+|                     | `--version`            | show program's version number and exit |
+| `-h`                | `--help`               | show this help message and exit |
 
 ## Citing Poreplex
 A pre-print is going to be released soon.
