@@ -29,12 +29,14 @@ extra_dependencies_live = ['inotify >= 0.2.9']
 setup(
     name='poreplex',
     packages=['poreplex'],
-    version='0.1',
+    version='0.2',
     description='A versatile sequence read processor for nanopore direct RNA sequencing',
     author='Hyeshik Chang',
     author_email='hyeshik@snu.ac.kr',
     url='https://github.com/hyeshik/poreplex',
     download_url='https://github.com/hyeshik/poreplex/releases',
+    long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
     include_package_data=True,
     keywords=[
         'nanopore',
