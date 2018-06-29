@@ -106,7 +106,7 @@ poreplex -i path/to/fast5 -o path/to/output --keep-unsplit
 ```
 
 ## Barcoding direct RNA sequencing libraries
-The official kits and protocols does not support barcoding in the direct RNA
+The official kits and protocols do not support barcoding in the direct RNA
 sequencing yet. *Poreplex* enables pooling multiple libraries into a single
 DRS run.
 
@@ -172,9 +172,9 @@ may remain undetected.
 
 ## Real-time sequence alignments 
 *Poreplex* aligns the reads to the reference transcriptome using
-*minimap2* and writes the results to BAM files when the index file for
-the reference is provided. Some options that affect the performance of
-the alignments can be specified on generating the *minimap2* index.
+*minimap2* and writes the results to BAM files when an index file for
+a reference is provided. Some options that affect the performance of
+the alignments can be specified when generating the *minimap2* index.
 
 ```bash
 wget 'ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_28/gencode.v28.transcripts.fa.gz'
@@ -191,25 +191,25 @@ the pipeline can be visualized as a [full-screen dashboard view in a text
 terminal](#screenshot). *Poreplex* shows the real-time report when the
 command line includes the `--dashboard` switch along with `--align` for
 the index of the reference transcriptome. The names of mapped sequences
-are shown with the sequence name in the reference *minimap2* index. To
-see them in more familiar names, supply a file containing IDs and names
-with the `--contig-aliases` switch. The files must be a tab-separated
-text file with two columns consists of ID (in the reference index)
-and name (to show in the screen) in a line. The read counts window in
-the middle of the screen represents the summary of reads categorized by
-error status or detected barcodes for multiplexed libraries. Users can
-choose a group to show in the window with up and down keys. To stop the
+are shown as the sequence name in the reference *minimap2* index. To
+see them as more familiar names, supply a file containing IDs and names
+with the `--contig-aliases` switch. It must be a tab-separated
+text file with two columns. The first should contain IDs (in the reference index)
+and the second should contain names (to show in the screen). The read counts 
+window in the middle of the screen represents the summary of reads categorized by
+error status or detected barcodes for multiplexed libraries. A user can
+choose a group to show in the window with up and down arrow keys. To stop the
 process and close the dashboard, press Q key at any time.
 
 ## Pseudo-fusion filter
 In the Oxford Nanopore strand sequencing, a read is a snippet from a
-very long contiguous signal from a channel. In most cases, there should
-be enough gap between two different molecules and the control software
-cuts signals at the end of sequences. However, the gap between strands
-is sometimes not enough. A small fraction of reads is found to carry
-two or more molecules which can be identified by the characteristic
+very long contiguous signal from a channel. In most cases, there is a gap 
+between two different molecules. The gap should be long enough for the MinKNOW
+to cut signals at the end of sequences. However, the gap between strands
+is sometimes not enough, so that small fraction of reads carry two or more molecules.
+This pseudo-fusion reads can be identified by two or more characteristic
 signal pattern in the DNA adapters. This phenomenon can be particularly
-problematic in the pooled libraries with barcodes and the fusion gene
+problematic in the pooled libraries with barcodes and fusion gene
 studies. In a few runs in our testing, up to 1% of reads could be derived
 from insufficiently segmented signals. The following plot shows a signal
 sequence continued without any gap between the ends of two different
@@ -235,7 +235,7 @@ detected barcode.
 
 | File name | Description |
 | --------- | ----------- |
-| `fastq/pass.fastq.gz` | All sequences with basecalled and passed the basic quality filters in *poreplex*. With `--barcoding`, the passed sequences that were not detected of a barcode comes to this file. |
+| `fastq/pass.fastq.gz` | All sequences that were basecalled and passed the basic quality filters in *poreplex*. With `--barcoding`, the passed sequences with no identifiable barcode are written to this file. |
 | `fastq/BC#.fastq.gz`  | Sequences with identifiable barcode signals. |
 | `fastq/fail.fastq.gz` | Too short sequences that could not be calibrated for the signal processing. |
 | `fastq/artifact.fastq.gz` | Sequences that were classified as potential artifacts. |
