@@ -209,10 +209,10 @@ to cut signals at the end of sequences. However, the gap between strands
 is sometimes not enough, so that a small fraction of reads carry two or more molecules.
 This phenomenon can be particularly problematic in the pooled libraries with barcodes
 and fusion gene studies. In a few runs in our testing, up to 1% of reads could 
-be derived from insufficiently segmented signals. The following plot shows a signal
-sequence continued without any gap between the ends of two different
-adapted RNAs which were prepared independently and pooled for sequencing
-in the final step.
+be derived from insufficiently segmented signals. The following plot shows a signal 
+sequence continued without any gap between the ends of two differently
+adapted RNAs which were prepared independently until the reverse transcription 
+step (which includes the heat-inactivation of enzymes).
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/hyeshik/poreplex/master/doc/images/pseudo-fusion-signal.jpg" width="640px">
