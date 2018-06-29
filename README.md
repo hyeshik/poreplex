@@ -211,8 +211,9 @@ This phenomenon can be particularly problematic in the pooled libraries with bar
 and fusion gene studies. In a few runs in our testing, up to 1% of reads could 
 be derived from insufficiently segmented signals. The following plot shows a signal 
 sequence continued without any gap between the ends of two differently
-adapted RNAs which were prepared independently until the reverse transcription 
-step (which includes the heat-inactivation of enzymes).
+adapted RNAs which were prepared independently until the second ligation 
+step, before which RNAs were pooled (RT before the ligation includes the heat-
+inactivation of enzymes).
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/hyeshik/poreplex/master/doc/images/pseudo-fusion-signal.jpg" width="640px">
