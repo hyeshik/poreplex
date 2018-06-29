@@ -171,9 +171,9 @@ made visible by creating hard or symbolic links or changing permissions
 may remain undetected.
 
 ## Real-time sequence alignments 
-*Poreplex* aligns the reads to the reference transcriptome using
+*Poreplex* aligns the reads to a reference transcriptome using
 *minimap2* and writes the results to BAM files when an index file for
-a reference is provided. Some options that affect the performance of
+the reference is provided. Some options that affect the performance of
 the alignments can be specified when generating the *minimap2* index.
 
 ```bash
@@ -204,14 +204,12 @@ process and close the dashboard, press Q key at any time.
 ## Pseudo-fusion filter
 In the Oxford Nanopore strand sequencing, a read is a snippet from a
 very long contiguous signal from a channel. In most cases, there is a gap 
-between two different molecules. The gap should be long enough for the MinKNOW
+between two different molecules. The gap should be long enough for the *MinKNOW*
 to cut signals at the end of sequences. However, the gap between strands
-is sometimes not enough, so that small fraction of reads carry two or more molecules.
-This pseudo-fusion reads can be identified by two or more characteristic
-signal pattern in the DNA adapters. This phenomenon can be particularly
-problematic in the pooled libraries with barcodes and fusion gene
-studies. In a few runs in our testing, up to 1% of reads could be derived
-from insufficiently segmented signals. The following plot shows a signal
+is sometimes not enough, so that a small fraction of reads carry two or more molecules.
+This phenomenon can be particularly problematic in the pooled libraries with barcodes
+and fusion gene studies. In a few runs in our testing, up to 1% of reads could 
+be derived from insufficiently segmented signals. The following plot shows a signal
 sequence continued without any gap between the ends of two different
 adapted RNAs which were prepared independently and pooled for sequencing
 in the final step.
@@ -220,7 +218,7 @@ in the final step.
 <img src="https://raw.githubusercontent.com/hyeshik/poreplex/master/doc/images/pseudo-fusion-signal.jpg" width="640px">
 </p>
 
-*Poreplex* detects potential artifacts with multiple appearances of the
+*Poreplex* detects potential artifacts by detecting multiple appearances of the
 signature of the DNA adapter in a single read. The default parameters
 for the filtering can be too sensitive for some experiments. You can
 disable the pseudo-fusion filter with the `--keep-unsplit` option.
