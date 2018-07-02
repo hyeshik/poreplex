@@ -38,6 +38,9 @@ command:
 pip install 'poreplex[full]'
 ```
 
+The Oxford Nanopore Technologies (ONT) *albacore* can be retrieved and installed
+from the [official download site](https://community.nanoporetech.com/downloads).
+
 ### Additional (Optional) Dependency
 As its inputs, *poreplex* requires the FAST5 files that were basecalled using
 [ONT *albacore*](https://community.nanoporetech.com/downloads) in advance.
@@ -115,10 +118,10 @@ two different 3' adapters, [RTA and RMX](https://community.nanoporetech.com/prot
 respectively. Both are double-stranded DNAs with Y-burged ends on the
 3'-sides. Barcoded libraries for *poreplex* can be built with modified versions of
 RTA adapters. Unlike in the DNA sequencing libraries, *poreplex* demultiplexes
-in signal-level to ensure the highest accuracy. The distribution contains
-demultiplexer models pre-trained with four different DNA barcodes.
-Order these sequences and replace the original RTA adapters as many as you
-need in the experiment.
+in signal-level to ensure the highest accuracy. The *poreplex* package
+comes with pre-trained demultiplexer models for four different DNA barcodes.
+Order these sequences as many as you need in the experiment and replace the
+original RTA adapters.
 
 ```yaml
 BC1 Oligo A: 5'-/5Phos/CCTCCCCTAAAAACGAGCCGCATTTGCGTAGTAGGTTC-3'
