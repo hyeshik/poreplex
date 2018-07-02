@@ -38,9 +38,6 @@ command:
 pip install 'poreplex[full]'
 ```
 
-The Oxford Nanopore Technologies (ONT) *albacore* can be retrieved and installed
-from the [official download site](https://community.nanoporetech.com/downloads).
-
 ### Additional (Optional) Dependency
 As its inputs, *poreplex* requires the FAST5 files that were basecalled using
 [ONT *albacore*](https://community.nanoporetech.com/downloads) in advance.
