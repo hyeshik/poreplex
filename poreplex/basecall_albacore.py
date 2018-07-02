@@ -25,6 +25,7 @@ __all__ = ['check_albacore', 'AlbacoreBroker']
 # All albacore modules are loaded from the insides of functions to enable
 # graceful detection of ImportErrors in check_albacore().
 from itertools import product
+from collections import OrderedDict
 import pandas as pd
 import os
 
@@ -77,10 +78,10 @@ class AlbacoreBroker:
 
     def adopt_basecalled_table(self, result):
         field_names = 'mean start stdv length model_state move p_model_state weights'.split()
-        return pd.DataFrame.from_items(
+        return pd.DataFrame.from_dict(OrderedDict(
             [(field, result[field] if field != 'model_state'
               else list(map(self.kmer_decode_table.__getitem__, result[field])))
-             for field in field_names])
+             for field in field_names]))
 
     def basecall(self, rawdata, channel_info, read_info, filename):
         read_id = read_info.read_id

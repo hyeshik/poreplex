@@ -26,7 +26,7 @@ __all__ = [
     'OUTPUT_NAME_ARTIFACT', 'OUTPUT_NAME_BARCODES',
 ]
 
-__version__ = '0.1'
+__version__ = '0.2.1a1'
 
 OUTPUT_NAME_PASSED = 'pass'
 OUTPUT_NAME_FAILED = 'fail'
