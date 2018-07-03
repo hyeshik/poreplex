@@ -22,7 +22,7 @@
 #
 
 import h5py
-from keras.layers import Dense, Dropout, GRU, LSTM
+from keras.layers import Dense, Dropout, GRU, LSTM, GaussianNoise, MaxPooling1D
 from keras.models import Sequential
 from keras.callbacks import Callback, EarlyStopping, CSVLogger, ModelCheckpoint
 from keras.utils.training_utils import multi_gpu_model
@@ -73,34 +73,56 @@ def load_data(datapath, datatype):
         print('  - done.')
         return currentgroup
 
+def build_layers_GRU_2_128(input_shape, num_classes):
+    model = Sequential()
+
+    model.add(GaussianNoise(1.5, input_shape=input_shape))
+
+    model.add(GRU(128, return_sequences=True))
+    model.add(Dropout(0.1))
+
+    model.add(GRU(128, return_sequences=False))
+    model.add(Dropout(0.3))
+
+    model.add(Dense(num_classes, activation='softmax'))
+    return model
+
+def build_layers_GRU_2_64(input_shape, num_classes):
+    model = Sequential()
+
+    model.add(GaussianNoise(1.5, input_shape=input_shape))
+
+    model.add(GRU(64, return_sequences=True))
+    model.add(Dropout(0.1))
+
+    model.add(GRU(64, return_sequences=False))
+    model.add(Dropout(0.3))
+
+    model.add(Dense(num_classes, activation='softmax'))
+    return model
+
+def build_layers_GRU_3(input_shape, num_classes):
+    model = Sequential()
+
+    model.add(GaussianNoise(1.5, input_shape=input_shape))
+
+    model.add(GRU(64, return_sequences=True))
+    model.add(MaxPooling1D(pool_size=5, strides=2, padding='same'))
+    model.add(Dropout(0.1))
+
+    model.add(GRU(128, return_sequences=True))
+    model.add(Dropout(0.1))
+
+    model.add(GRU(64, return_sequences=False))
+    model.add(Dropout(0.3))
+
+    model.add(Dense(num_classes, activation='softmax'))
+    return model
 
 def create_model(params, layerdef, input_shape, num_classes):
     print('Creating model...')
-
     with tf.device('/cpu:0'):
-        model = Sequential()
-
-        lastlearninglayer = None
-        for i, defrow in enumerate(layerdef):
-            if defrow[0] != 'Dropout':
-                lastlearninglayer = i
-
-        if lastlearninglayer is None:
-            raise Exception('No learning layer is specified.')
-
-        for i, defrow in enumerate(layerdef):
-            celltype = eval(defrow[0])
-            param1 = defrow[1]
-            kwargs = {}
-
-            if i == 0:
-                kwargs['input_shape'] = input_shape
-            if i != lastlearninglayer and defrow[0] != 'Dropout':
-                kwargs['return_sequences'] = True
-
-            model.add(celltype(param1, **kwargs))
-
-        model.add(Dense(num_classes, activation='softmax'))
+        model = globals()['build_layers_' + layerdef](input_shape, num_classes)
 
     print('Compiling...')
 
@@ -208,10 +230,6 @@ def main(global_params, layer_def, dataset_file, output_dir):
 
 
 if __name__ == '__main__':
-    #global_params = '{"ngpu": 2, "epochs": 12, "validation_split": 0.1, "batchsize_train": 512, "batchsize_eval": 64, "batchsize_test": 64, "optimizer": "adam", "model_checkpoint_period": 10}'
-    #layer_def = '[["GRU", 64], ["Dropout", 0.5], ["GRU", 64], ["Dropout", 0.5]]'
-    #dataset_file = '../traindata/signals-MXG3.1-s2000-t500.hdf5'
-    #output_dir = '../models/MXG3.1-s2000-t500-lGRU_64_64'
     import sys
 
     global_params, layer_def, dataset_file, output_dir = sys.argv[1:]
@@ -219,7 +237,6 @@ if __name__ == '__main__':
     import json
 
     global_params = json.loads(global_params)
-    layer_def = json.loads(layer_def)
 
     main(global_params, layer_def, dataset_file, output_dir)
 

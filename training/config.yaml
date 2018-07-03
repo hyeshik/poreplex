@@ -35,23 +35,7 @@ training_parameters:
     model_checkpoint_period: 1
     earlystopping_min_delta: 0.001
     earlystopping_patience: 20
-  GRU_128_128_05:
-    - [GRU, 128]
-    - [Dropout, 0.5]
-    - [GRU, 128]
-    - [Dropout, 0.5]
-  GRU_128_128_03:
-    - [GRU, 128]
-    - [Dropout, 0.3]
-    - [GRU, 128]
-    - [Dropout, 0.3]
-  GRU_64_64_03:
-    - [GRU, 64]
-    - [Dropout, 0.3]
-    - [GRU, 64]
-    - [Dropout, 0.3]
-  LSTM_64_64_03:
-    - [LSTM, 64]
-    - [Dropout, 0.3]
-    - [LSTM, 64]
-    - [Dropout, 0.3]
+  layer_designs:
+    - GRU_2_128
+    - GRU_2_64
+    - GRU_3

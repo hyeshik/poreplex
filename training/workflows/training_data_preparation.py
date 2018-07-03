@@ -196,8 +196,7 @@ rule train_demux_nn:
         import json
         import subprocess as sp
         global_params = json.dumps(config['training_parameters']['global'])
-        layer_def = json.dumps(config['training_parameters'][wildcards.preset])
-        sp.check_call(['scripts/train_demux_nn.py', global_params, layer_def,
+        sp.check_call(['scripts/train_demux_nn.py', global_params, wildcards.preset,
                       input[0], os.path.dirname(output[0])])
 
 

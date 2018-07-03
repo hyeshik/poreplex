@@ -16,9 +16,7 @@ rule all:
         expand('models/{name}-s{size}-t{trim}-l{preset}/test-predictions.txt',
                 name=RUN_NAMES, size=config['train_data_transform']['subsample_sizes'],
                 trim=config['train_data_transform']['final_trim_sizes'],
-                preset=[psetname
-                        for psetname in config['training_parameters']
-                        if psetname != 'global'])
+                preset=config['training_parameters']['layer_designs'])
 
 include: 'workflows/preprocessing.py'
 include: 'workflows/prepare_references.py'
