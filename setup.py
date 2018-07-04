@@ -57,7 +57,7 @@ setup(
     ],
     install_requires=[
         'PyYAML >= 3.0',
-        'h5py >= 2.8.0rc1',
+        'h5py >= 2.7.0',
         'mappy >= 2.10',
         'numpy >= 1.14',
         'ont-fast5-api >= 0.4.1',
