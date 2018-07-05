@@ -1,0 +1,118 @@
+diff -uN scrappie.3dc490fe23913cc35764b79e6e8ae6e5b5e0c395/event_detection.c scrappie/event_detection.c
+--- scrappie.3dc490fe23913cc35764b79e6e8ae6e5b5e0c395/event_detection.c	2018-07-05 13:00:25.433093931 +0900
++++ scrappie/event_detection.c	2018-07-05 18:37:00.878843766 +0900
+@@ -32,6 +32,7 @@
+  *   @param sumsq     double[d_length + 1]   Vector to store sum of squares (out)
+  *   @param d_length                     Length of data vector
+  **/
++static
+ void compute_sum_sumsq(const float *data, double *sum,
+                        double *sumsq, size_t d_length) {
+     RETURN_NULL_IF(NULL == data, );
+@@ -57,6 +58,7 @@
+  *
+  *   @returns float array containing tstats.  Returns NULL on error
+  **/
++static
+ float *compute_tstat(const double *sum, const double *sumsq,
+                      size_t d_length, size_t w_length) {
+     assert(d_length > 0);
+@@ -119,6 +121,7 @@
+  *   @returns array of length nsample whose elements contain peak positions
+  *   Remaining elements are padded by zeros.
+  **/
++static
+ size_t *short_long_peak_detector(DetectorPtr short_detector,
+                                  DetectorPtr long_detector,
+                                  const float peak_height) {
+@@ -210,6 +213,7 @@
+  *
+  *  @returns An initialised event.  A 'null' event is returned on error.
+  **/
++static
+ event_t create_event(size_t start, size_t end, double const *sums,
+                      double const *sumsqs, size_t nsample) {
+     assert(start < nsample);
+diff -uN scrappie.3dc490fe23913cc35764b79e6e8ae6e5b5e0c395/event_detection.h scrappie/event_detection.h
+--- scrappie.3dc490fe23913cc35764b79e6e8ae6e5b5e0c395/event_detection.h	2018-07-05 13:00:25.437094002 +0900
++++ scrappie/event_detection.h	2018-07-05 18:45:01.959787190 +0900
+@@ -12,6 +12,7 @@
+ } detector_param;
+ 
+ 
++#if 0
+ static detector_param const event_detection_defaults = {
+     .window_length1 = 3,
+     .window_length2 = 6,
+@@ -19,6 +20,7 @@
+     .threshold2 = 9.0f,
+     .peak_height = 0.2f
+ };
++#endif
+ 
+ 
+ 
+diff -uN scrappie.3dc490fe23913cc35764b79e6e8ae6e5b5e0c395/util.c scrappie/util.c
+--- scrappie.3dc490fe23913cc35764b79e6e8ae6e5b5e0c395/util.c	2018-07-05 13:34:41.658252224 +0900
++++ scrappie/util.c	2018-07-05 18:44:12.406866746 +0900
+@@ -6,6 +6,7 @@
+ #include "scrappie_stdlib.h"
+ #include "util.h"
+ 
++#if 0
+ int argmaxf(const float *x, int n) {
+     assert(n > 0);
+     if (NULL == x) {
+@@ -65,7 +66,9 @@
+     }
+     return vmin;
+ }
++#endif
+ 
++static
+ int floatcmp(const void *x, const void *y) {
+     float d = *(float *)x - *(float *)y;
+     if (d > 0) {
+@@ -187,6 +190,7 @@
+  *  @param n Length of array
+  *  @return void
+  **/
++#if 0
+ void medmad_normalise_array(float *x, size_t n) {
+     if (NULL == x) {
+         return;
+@@ -286,3 +290,4 @@
+ 
+     return true;
+ }
++#endif
+diff -uN scrappie.3dc490fe23913cc35764b79e6e8ae6e5b5e0c395/util.h scrappie/util.h
+--- scrappie.3dc490fe23913cc35764b79e6e8ae6e5b5e0c395/util.h	2018-07-05 13:01:24.474161156 +0900
++++ scrappie/util.h	2018-07-05 18:42:13.104649825 +0900
+@@ -5,6 +5,7 @@
+ #    include <math.h>
+ #    include <stdbool.h>
+ #    include <stdint.h>
++#if 0
+ #    include "sse_mathfun.h"
+ 
+ #    ifdef FAST_LOG
+@@ -250,6 +251,7 @@
+ static inline int ifloor(int x, int y) {
+     return x / y;
+ }
++#endif
+ 
+ void quantilef(const float *x, size_t nx, float *p, size_t np);
+ float medianf(const float *x, size_t n);
+@@ -257,8 +259,10 @@
+ void medmad_normalise_array(float *x, size_t n);
+ void studentise_array_kahan(float *x, size_t n);
+ 
++#if 0
+ bool equality_array(double const * x, double const * y, size_t n, double const tol);
+ bool equality_arrayf(float const * x, float const * y, size_t n, float const tol);
+ bool equality_arrayi(int const * x, int const * y, size_t n);
++#endif
+ 
+ #endif                          /* UTIL_H */

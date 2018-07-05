@@ -22,9 +22,20 @@
 #
 
 from setuptools import setup
+from distutils.core import Extension
 
 extra_dependencies_barcoding = ['tensorflow >= 1.8.0', 'Keras >= 2.1.6']
 extra_dependencies_live = ['inotify >= 0.2.9']
+
+scrappie_sources = """
+    src/contrib/scrappie/event_detection.c
+    src/contrib/scrappie/scrappie_common.c
+    src/contrib/scrappie/util.c
+""".split()
+
+mod_csupport = Extension('poreplex.csupport',
+                         sources=['src/csupport.c'] + scrappie_sources,
+                         include_dirs=['src/contrib/scrappie'])
 
 setup(
     name='poreplex',
@@ -78,4 +89,5 @@ setup(
             'poreplex = poreplex.commandline:__main__'
         ],
     },
+    ext_modules=[mod_csupport],
 )

@@ -5,3 +5,7 @@ include poreplex/kmer_models/*.md
 include poreplex/kmer_models/*RNA/*.model
 include poreplex/presets/*.cfg
 include poreplex/presets/*/*.hdf5
+include src/*.c
+include src/contrib/scrappie/*.md
+include src/contrib/scrappie/*.c
+include src/contrib/scrappie/*.h
