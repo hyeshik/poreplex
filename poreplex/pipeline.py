@@ -21,6 +21,7 @@
 #
 
 import asyncio
+import traceback
 import signal
 import math
 import sys
@@ -92,16 +93,19 @@ def process_batch(batchid, reads, config):
             if config['barcoding']:
                 barcode_assg = analyzer.predict_barcode_labels()
                 for res in results:
-                    if res['read_id'] in barcode_assg:
+                    if res.get('read_id') in barcode_assg:
                         res['label'] = barcode_assg[res['read_id']]
 
             return results
     except Exception as exc:
-        import traceback
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        filename = os.path.split(exc_tb.tb_frame.f_code.co_filename)[-1]
         errorf = StringIO()
         traceback.print_exc(file=errorf)
-        return (-1, 'Unhandled exception {}: {}'.format(type(exc).__name__, str(exc)),
-                errorf.getvalue())
+
+        return (-1, '[{filename}:{lineno}] Unhandled exception {name}: {msg}'.format(
+                        filename=filename, lineno=exc_tb.tb_lineno,
+                        name=type(exc).__name__, msg=str(exc)), errorf.getvalue())
 
 class ProcessingSession:
 
