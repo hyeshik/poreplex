@@ -3,6 +3,11 @@ Signal-level preprocessor for Oxford Nanopore direct RNA sequencing (DRS) data.
 Poreplex does many preprocessing steps required before the downstream analyses
 for RNA Biology and yields the processed data in the ready-to-use forms.
 
+[![PyPI status](https://img.shields.io/pypi/v/poreplex.svg)](https://pypi.python.org/pypi/poreplex)
+[![Build Status](https://travis-ci.org/hyeshik/poreplex.svg?branch=master)](https://travis-ci.org/hyeshik/poreplex)
+[![GitHub license](https://img.shields.io/github/license/hyeshik/poreplex.svg)](https://github.com/hyeshik/poreplex/blob/master/LICENSE.txt)
+[![Twitter Follow](https://img.shields.io/twitter/follow/hyeshik.svg?style=social&logo=twitter)](https://twitter.com/hyeshik)
+
 ## Features
 * [Demultiplexing barcoded *direct RNA* sequencing libraries](#barcoding-direct-rna-sequencing-libraries)
 * Trimming 3′ adapter sequences
