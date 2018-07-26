@@ -25,6 +25,7 @@ from glob import glob
 from functools import partial
 from collections import defaultdict
 from shutil import copyfileobj
+from threading import Lock
 import h5py
 import numpy as np
 import logging
@@ -37,6 +38,7 @@ class FASTQWriter:
     def __init__(self, outputdir, names):
         self.outputdir = outputdir
         self.names = names
+        self.lock = Lock()
 
         self.open_streams()
 
@@ -53,15 +55,16 @@ class FASTQWriter:
         return os.path.join(self.outputdir, 'fastq', name + '.fastq.gz')
 
     def write_sequences(self, procresult):
-        for entry in procresult:
-            if entry.get('fastq') is not None:
-                seq, qual, adapter_length = entry['fastq']
-                if adapter_length > 0:
-                    seq = seq[:-adapter_length]
-                    qual = qual[:-adapter_length]
+        with self.lock:
+            for entry in procresult:
+                if entry.get('fastq') is not None:
+                    seq, qual, adapter_length = entry['fastq']
+                    if adapter_length > 0:
+                        seq = seq[:-adapter_length]
+                        qual = qual[:-adapter_length]
 
-                formatted = '@{}\n{}\n+\n{}\n'.format(entry['read_id'], seq, qual)
-                self.streams[entry['label']].write(formatted.encode('ascii'))
+                    formatted = '@{}\n{}\n+\n{}\n'.format(entry['read_id'], seq, qual)
+                    self.streams[entry['label']].write(formatted.encode('ascii'))
 
 
 def link_fast5_files(config, results):
@@ -124,6 +127,7 @@ class SequencingSummaryWriter:
 
     def __init__(self, outputdir, labelmapping):
         self.file = open(os.path.join(outputdir, 'sequencing_summary.txt'), 'w')
+        self.lock = Lock()
         self.labelmapping = labelmapping
         print(*self.SUMMARY_OUTPUT_FIELDS, sep='\t', file=self.file)
 
@@ -131,12 +135,13 @@ class SequencingSummaryWriter:
         self.file.close()
 
     def write_results(self, results):
-        for entry in results:
-            if 'label' in entry:
-                print(*[self.labelmapping.get(entry[f], entry[f])
-                        if f == 'label' else entry[f]
-                        for f in self.SUMMARY_OUTPUT_FIELDS],
-                      file=self.file, sep='\t')
+        with self.lock:
+            for entry in results:
+                if 'label' in entry:
+                    print(*[self.labelmapping.get(entry[f], entry[f])
+                            if f == 'label' else entry[f]
+                            for f in self.SUMMARY_OUTPUT_FIELDS],
+                          file=self.file, sep='\t')
 
 
 class NanopolishReadDBWriter:
@@ -145,6 +150,7 @@ class NanopolishReadDBWriter:
         self.labelmapping = labelmapping
         self.outputdir = os.path.join(outputdir, 'nanopolish')
         self.seqfiles, self.dbfiles = self.open_streams()
+        self.lock = Lock()
 
     def open_streams(self):
         seqfiles, dbfiles = {}, {}
@@ -172,15 +178,16 @@ class NanopolishReadDBWriter:
                 faidx(bgzippedfile)
 
     def write_sequences(self, procresult):
-        for entry in procresult:
-            if entry.get('fastq') is not None:
-                formatted = '>{}\n{}\n'.format(entry['read_id'], entry['fastq'][0])
-                self.seqfiles[entry['label']].write(formatted)
+        with self.lock:
+            for entry in procresult:
+                if entry.get('fastq') is not None:
+                    formatted = '>{}\n{}\n'.format(entry['read_id'], entry['fastq'][0])
+                    self.seqfiles[entry['label']].write(formatted)
 
-                fast5_relpath = os.path.join('..', 'fast5', self.labelmapping[entry['label']],
-                                             entry['filename'])
-                formatted = '{}\t{}\n'.format(entry['read_id'], fast5_relpath)
-                self.dbfiles[entry['label']].write(formatted)
+                    fast5_relpath = os.path.join('..', 'fast5', self.labelmapping[entry['label']],
+                                                 entry['filename'])
+                    formatted = '{}\t{}\n'.format(entry['read_id'], fast5_relpath)
+                    self.dbfiles[entry['label']].write(formatted)
 
 
 class FinalSummaryTracker:
