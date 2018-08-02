@@ -29,8 +29,6 @@ extra_dependencies_live = ['inotify >= 0.2.9']
 
 scrappie_sources = """
     src/contrib/scrappie/event_detection.c
-    src/contrib/scrappie/scrappie_common.c
-    src/contrib/scrappie/util.c
 """.split()
 
 mod_csupport = Extension('poreplex.csupport',

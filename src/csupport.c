@@ -28,7 +28,6 @@
 
 #include "Python.h"
 #include "numpy/arrayobject.h"
-#include "scrappie_common.h"
 #include "event_detection.h"
 
 static PyObject *ErrorObject;
@@ -77,23 +76,17 @@ poreplex_detect_events(PyObject *self, PyObject *args, PyObject *kw)
     raw_table rt;
     event_table et;
 
-    /* The default parameters for the trimmer from scrappie */
-    int trim_start=200, trim_end=10, varseg_chunk=100;
-    float varseg_thresh=0.0f;
-
     /* The default parameters for the event detector are from nanopolish. */
     detector_param edparams={7, 14, 2.5f, 9.0, 1.0f};
 
     static char *keywords[] = {
-        "signal", "trim_start", "trim_end", "varseg_chunk", "varseg_thresh",
-        "ed_window_length1", "ed_window_length2", "ed_threshold1",
-        "ed_threshold2", "ed_peak_height", NULL
+        "signal", "window_length1", "window_length2", "threshold1",
+        "threshold2", "peak_height", NULL
     };
 
     assert(sizeof(Py_ssize_t) == sizeof(ssize_t));
-    if (PyArg_ParseTupleAndKeywords(args, kw, "O|iiifnnfff:detect_events", keywords,
-                                    &signalarg, &trim_start, &trim_end, &varseg_chunk,
-                                    &varseg_thresh, &edparams.window_length1,
+    if (PyArg_ParseTupleAndKeywords(args, kw, "O|nnfff:detect_events", keywords,
+                                    &signalarg, &edparams.window_length1,
                                     &edparams.window_length2, &edparams.threshold1,
                                     &edparams.threshold2, &edparams.peak_height) == 0)
         return NULL;
@@ -111,41 +104,19 @@ poreplex_detect_events(PyObject *self, PyObject *args, PyObject *kw)
 
     nsamples = PyArray_SHAPE(signalobj)[0];
 
-    /* Copy the array data since scrappie's trim_and_segment_raw frees
-     * rt.raw in some circumstances. */
-    rt.raw = calloc(nsamples, sizeof(float));
-    if (rt.raw == NULL) {
-        Py_DECREF(signalobj);
-        PyErr_SetString(PyExc_MemoryError, "Memory allocation failed.");
-        return NULL;
-    }
-    memcpy(rt.raw, PyArray_DATA(signalobj), sizeof(float) * nsamples);
+    rt.raw = PyArray_DATA(signalobj);
     rt.n = rt.end = nsamples;
     rt.start = 0;
-
-    Py_BEGIN_ALLOW_THREADS
-    rt = trim_and_segment_raw(rt, trim_start, trim_end, varseg_chunk, varseg_thresh);
-    Py_END_ALLOW_THREADS
-    if (rt.n <= 0) {
-        if (rt.raw != NULL)
-            free(rt.raw);
-        PyErr_SetString(ErrorObject, "Trimming failed.");
-        return NULL;
-    }
 
     Py_BEGIN_ALLOW_THREADS
     et = detect_events(rt, edparams);
     Py_END_ALLOW_THREADS
     if (et.n <= 0) {
-        if (rt.raw != NULL)
-            free(rt.raw);
         PyErr_SetString(ErrorObject, "Event detection failed.");
         return NULL;
     }
 
     Py_DECREF(signalobj);
-    if (rt.raw != NULL)
-        free(rt.raw);
 
     ret = build_event_array(&et);
     if (et.event != NULL)
