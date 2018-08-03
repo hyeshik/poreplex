@@ -264,7 +264,8 @@ event_table create_events(size_t const *peaks, double const *sums,
         et.event[ev] = create_event(peaks[ev - 1], peaks[ev], sums, sumsqs, nsample);
     }
     // Last event -- ends at nsample
-    et.event[n - 1] = create_event(peaks[n - 2], nsample, sums, sumsqs, nsample);
+    if (n > 1)
+        et.event[n - 1] = create_event(peaks[n - 2], nsample, sums, sumsqs, nsample);
 
     return et;
 }

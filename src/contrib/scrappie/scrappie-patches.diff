@@ -33,6 +33,16 @@ diff -uN scrappie.3dc490fe23913cc35764b79e6e8ae6e5b5e0c395/event_detection.c scr
  event_t create_event(size_t start, size_t end, double const *sums,
                       double const *sumsqs, size_t nsample) {
      assert(start < nsample);
+@@ -264,7 +264,8 @@ event_table create_events(size_t const *peaks, double const *sums,
+         et.event[ev] = create_event(peaks[ev - 1], peaks[ev], sums, sumsqs, nsample);
+     }
+     // Last event -- ends at nsample
+-    et.event[n - 1] = create_event(peaks[n - 2], nsample, sums, sumsqs, nsample);
++    if (n > 1)
++        et.event[n - 1] = create_event(peaks[n - 2], nsample, sums, sumsqs, nsample);
+
+     return et;
+ }
 diff -uN scrappie.3dc490fe23913cc35764b79e6e8ae6e5b5e0c395/event_detection.h scrappie/event_detection.h
 --- scrappie.3dc490fe23913cc35764b79e6e8ae6e5b5e0c395/event_detection.h	2018-07-05 13:00:25.437094002 +0900
 +++ scrappie/event_detection.h	2018-07-05 18:45:01.959787190 +0900
