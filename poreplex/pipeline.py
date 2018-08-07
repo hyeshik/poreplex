@@ -236,6 +236,8 @@ class ProcessingSession:
                 if result['filename'] not in self.files_done:
                     if result['status'] == 'okay':
                         self.files_done.add(result['filename'])
+                    elif 'error_message' in result:
+                        self.logger.error(result['error_message'])
                     nd_results.append(result)
                 else: # Cancel the duplicated result
                     self.reads_queued -= 1
