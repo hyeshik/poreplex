@@ -30,7 +30,10 @@ import multiprocessing as mp
 import numpy as np
 import pandas as pd
 from hashlib import sha1
+from io import StringIO
+import traceback
 import h5py
+import sys
 import os
 from scipy.signal import medfilt
 from .utils import union_intervals
@@ -117,10 +120,19 @@ class SignalAnalyzer:
         try:
             return SignalAnalysis(filename, self).process()
         except Exception as exc:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            filename = os.path.split(exc_tb.tb_frame.f_code.co_filename)[-1]
+            errorf = StringIO()
+            traceback.print_exc(file=errorf)
+
+            errmsg = '[{filename}:{lineno}] Unhandled exception {name}: {msg}\n{exc}'.format(
+                filename=filename, lineno=exc_tb.tb_lineno,
+                name=type(exc).__name__, msg=str(exc), exc=errorf.getvalue())
+
             return {
                 'filename': filename,
                 'status': 'unknown_error',
-                'error_message': '{}: {}'.format(type(exc).__name__, str(exc))
+                'error_message': errmsg,
             }
 
     def open_dump_file(self, subdir, parentgroup):
