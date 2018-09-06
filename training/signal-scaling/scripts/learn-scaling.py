@@ -153,10 +153,10 @@ if __name__ == '__main__':
         'epochs': 200,
         'validation_split': 0.3,
         'transform-y': 'dataarrays/scaling-transform.txt',
-        'training-x': 'dataarrays/signals-training.mini.npy',
-        'training-y': 'dataarrays/scaling-training.mini.npy',
-        'testing-x': 'dataarrays/signals-testing.mini.npy',
-        'testing-y': 'dataarrays/scaling-testing.mini.npy',
+        'training-x': 'dataarrays/signals-training.npy',
+        'training-y': 'dataarrays/scaling-training.npy',
+        'testing-x': 'dataarrays/signals-testing.npy',
+        'testing-y': 'dataarrays/scaling-testing.npy',
     }
 
     main(global_params, 'trained-model')

@@ -15,6 +15,7 @@ OUTLIER_FILTERING_SAMPLE_SIZE = 10000
 OUTLIER_CONTAMINATION = 0.02
 
 TESTSET_SPLIT = 0.2
+BALANCING_STDEV_BOOST = 1.8
 
 KMERMODEL = '../../poreplex/kmer_models/r9.4_180mv_70bps_5mer_RNA/template_median69pA.model'
 
@@ -149,10 +150,42 @@ rule exclude_outliers:
         np.save(output.purified_params, paramsarr[is_inlier])
         np.save(output.purified_signals, open_memmap(input.fullsignals)[is_inlier])
 
-rule split_testing_set:
+rule remove_batch_effect:
     input:
         signalfile='dataarrays/signals-purified.npy',
         paramsfile='dataarrays/scaling-purified.npy'
+    output:
+        signalfile='dataarrays/signals-balanced.npy',
+        paramsfile='dataarrays/scaling-balanced.npy'
+    run:
+        from numpy.lib.format import open_memmap
+        import numpy as np
+        from numpy import random
+
+        signals = open_memmap(input.signalfile, 'r')
+        params = open_memmap(input.paramsfile, 'r')
+
+        target_mean = params.mean(axis=0)
+        target_std = params.std(axis=0) * BALANCING_STDEV_BOOST
+
+        signals_normalized = signals * params[:, 0, np.newaxis] + params[:, 1, np.newaxis]
+
+        del signals
+        randomized_params = np.vstack([
+            np.random.normal(target_mean[0], target_std[0], len(params)),
+            np.random.normal(target_mean[1], target_std[1], len(params))
+        ]).T
+
+        signals_noised = ((signals_normalized - randomized_params[:, 1, np.newaxis])
+                            / randomized_params[:, 0, np.newaxis])
+
+        np.save(output.signalfile, signals_noised)
+        np.save(output.paramsfile, randomized_params)
+
+rule split_testing_set:
+    input:
+        signalfile='dataarrays/signals-balanced.npy',
+        paramsfile='dataarrays/scaling-balanced.npy'
     output:
         signals_testing='dataarrays/signals-testing.npy',
         signals_training='dataarrays/signals-training.npy',
