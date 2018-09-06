@@ -26,6 +26,7 @@ from keras.models import Sequential
 from keras.callbacks import Callback, EarlyStopping, CSVLogger, ModelCheckpoint
 from keras.utils.training_utils import multi_gpu_model
 from numpy.lib.format import open_memmap
+from scipy.stats import pearsonr
 import shutil
 import tensorflow as tf
 import numpy as np
@@ -36,8 +37,7 @@ import pickle
 import os
 
 def build_layers(input_shape, output_variables):
-    gru = CuDNNGRU # CuDNNGRU
-    #gru = GRU
+    gru = GRU # CuDNNGRU
 
     model = Sequential()
 
