@@ -71,7 +71,7 @@ setup(
         'numpy >= 1.14',
         'ont-fast5-api >= 0.4.1',
         'pandas >= 0.22.0',
-        'pomegranate >= 0.9.0',
+        'pomegranate >= 0.10',
         'progressbar33 >= 2.4',
         'pysam >= 0.14.0',
         'scipy >= 1.0',
