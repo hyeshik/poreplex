@@ -36,7 +36,7 @@ from .io import (
     FASTQWriter, SequencingSummaryWriter, FinalSummaryTracker,
     NanopolishReadDBWriter, create_adapter_dumps_inventory,
     create_events_inventory, link_fast5_files)
-from .signal_analyzer import SignalAnalyzer
+from .signal_analyzer import process_batch
 from .alignment_writer import AlignmentWriter
 from .utils import *
 
@@ -74,38 +74,6 @@ def show_memory_usage():
     print('{:05d} MEMORY total={} RSS={} shared={} data={}'.format(
             batchid, usages[0], usages[1], usages[2], usages[4]))
 
-def process_file(inputfile, analyzer):
-    result = analyzer.process(inputfile)
-    return result
-
-def process_batch(batchid, reads, config):
-    try:
-        inputdir = config['inputdir']
-        with SignalAnalyzer(config, batchid) as analyzer:
-            results = []
-            for f5file in reads:
-                if os.path.exists(os.path.join(inputdir, f5file)):
-                    results.append(process_file(f5file, analyzer))
-                else:
-                    results.append({'filename': f5file,
-                                    'status': 'disappeared'})
-
-            if config['barcoding']:
-                barcode_assg = analyzer.predict_barcode_labels()
-                for res in results:
-                    if res.get('read_id') in barcode_assg:
-                        res['label'] = barcode_assg[res['read_id']]
-
-            return results
-    except Exception as exc:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        filename = os.path.split(exc_tb.tb_frame.f_code.co_filename)[-1]
-        errorf = StringIO()
-        traceback.print_exc(file=errorf)
-
-        return (-1, '[{filename}:{lineno}] Unhandled exception {name}: {msg}'.format(
-                        filename=filename, lineno=exc_tb.tb_lineno,
-                        name=type(exc).__name__, msg=str(exc)), errorf.getvalue())
 
 class ProcessingSession:
 

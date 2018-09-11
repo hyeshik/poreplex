@@ -56,6 +56,7 @@ def prepare_albacore(configpath, flowcell, kit, version_min=REQUIRED_ALBACORE_VE
     config = ConfigParser(interpolation=None)
     config.read_file(open(template[0]))
     config['basecaller']['model_path'] = albacore_data_path
+    config['calib_detector']['method'] = ''
     config.write(open(configpath, 'w'))
 
     return __version__
@@ -93,7 +94,8 @@ class AlbacoreBroker:
             'data_id': filename,
             'raw': rawdata,
         })
-        self.core.finish_all_jobs()
+        try: self.core.finish_all_jobs()
+        except RuntimeError: pass
         results = self.core.get_results()
 
         if read_id not in results or 'basecall_1d_callback' not in results[read_id]:

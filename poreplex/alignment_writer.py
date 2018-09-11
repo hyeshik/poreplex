@@ -160,10 +160,10 @@ class AlignmentWriter:
         for result in results:
             label = result.get('label', 'fail')
 
-            if result.get('fastq') is None or 'read_id' not in result:
+            if result.get('sequence') is None or 'read_id' not in result:
                 failed_counts[label] += 1
             else:
-                mapped = self.map_and_write(label, result['read_id'], *result['fastq'])
+                mapped = self.map_and_write(label, result['read_id'], *result['sequence'])
 
                 if mapped == '*':
                     unmapped_counts[label] += 1

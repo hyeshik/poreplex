@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #
 # Copyright (c) 2018 Institute for Basic Science
 #
@@ -20,16 +21,16 @@
 # THE SOFTWARE.
 #
 
-__all__ = [
-    '__version__',
-    'OUTPUT_NAME_PASSED', 'OUTPUT_NAME_FAILED',
-    'OUTPUT_NAME_ARTIFACT', 'OUTPUT_NAME_BARCODES',
-]
+import os
+import sys
+from io import StringIO
 
-__version__ = '0.3a1'
+__all__ = ['tensorflow', 'keras']
 
-OUTPUT_NAME_PASSED = 'pass'
-OUTPUT_NAME_FAILED = 'fail'
-OUTPUT_NAME_ARTIFACT = 'artifact'
-OUTPUT_NAME_BARCODES = 'BC{n}'
-
+try: # Suppress warnings and informative messages from keras and tf.
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    sys.stderr, saved_stderr = StringIO(), sys.stderr
+    import keras
+    import tensorflow
+finally:
+    sys.stderr = saved_stderr

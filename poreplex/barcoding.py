@@ -20,24 +20,9 @@
 # THE SOFTWARE.
 #
 
-import h5py
 import numpy as np
-import pandas as pd
 import os
-
-import sys
-from io import StringIO
-
-try: # Suppress warnings and informative messages from keras and tf.
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    sys.stderr, saved_stderr = StringIO(), sys.stderr
-    from keras import models
-    from keras.models import Sequential
-    from keras.layers import Dense, Dropout, GRU, LSTM
-    import tensorflow as tf
-finally:
-    sys.stderr = saved_stderr
-
+from .keras_wrap import keras
 
 class BarcodeDemultiplexer:
 
@@ -47,19 +32,24 @@ class BarcodeDemultiplexer:
         self.unclassified_fallback = 'pass' # label for undetermined reads
         self.signals = []
         self.signal_readids = []
-        self.results = {}
+        self.unclassified = []
+
+    def clear(self):
+        del self.signals[:]
+        del self.signal_readids[:]
+        del self.unclassified[:]
 
     def load_model(self):
         model_file = os.path.join(os.path.dirname(__file__),
                         'presets', self.config['demux_model'])
-        return models.load_model(model_file)
+        return keras.models.load_model(model_file)
 
     def push(self, read_id, signal):
         minlen = self.config['minimum_dna_length']
         maxlen = self.config['maximum_dna_length']
 
         if not minlen <= len(signal) <= maxlen:
-            self.results[read_id] = self.unclassified_fallback
+            self.unclassified.append(read_id)
             return
 
         trimlength = self.config['signal_trim_length']
@@ -70,7 +60,10 @@ class BarcodeDemultiplexer:
         self.signals.append(signal)
         self.signal_readids.append(read_id)
 
-    def predict(self):
+    def predict(self, contexts):
+        for read_id in self.unclassified:
+            contexts[read_id]['meta']['label'] = self.unclassified_fallback
+
         if len(self.signals) > 0:
             signals = np.array(self.signals)[:, :, np.newaxis]
             predweights = self.model.predict(signals,
@@ -79,16 +72,9 @@ class BarcodeDemultiplexer:
             predlabel_probs = np.amax(predweights, axis=1)
 
             predvalid = predlabel_probs >= self.config['pred_weight_cutoff']
-            readids = np.array(self.signal_readids, dtype='S36')
-            for idx in readids[~predvalid]:
-                self.results[idx.decode()] = self.unclassified_fallback
-            for idx, pred in zip(readids[predvalid], predlabels[predvalid]):
-                self.results[idx.decode()] = int(pred)
-
-        del self.signals[:]
-        del self.signal_readids[:]
-        ret, self.results = self.results, {}
-        return ret
+            for read_id, is_valid, bcid in zip(self.signal_readids, predvalid, predlabels):
+                contexts[read_id]['meta']['label'] = (
+                    int(bcid) if is_valid else self.unclassified_fallback)
 
 if __name__ == '__main__':
     import yaml

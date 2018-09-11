@@ -20,8 +20,6 @@
 # THE SOFTWARE.
 #
 
-from pomegranate import (
-    HiddenMarkovModel, GeneralMixtureModel, State, NormalDistribution)
 from weakref import proxy
 from itertools import groupby
 from ont_fast5_api.fast5_file import Fast5File
@@ -36,50 +34,29 @@ import h5py
 import sys
 import os
 from scipy.signal import medfilt
+from .worker_persistence import WorkerPersistenceStorage
 from .utils import union_intervals
 
-__all__ = ['SignalAnalyzer', 'SignalAnalysis']
+__all__ = ['SignalAnalyzer', 'SignalAnalysis', 'process_batch']
 
 
-class PipelineHandledError(Exception):
+class SignalAnalysisError(Exception):
     pass
 
 
-def load_persistence_store(config, analyzer, storage_name='__poreplex_persistence'):
-    import importlib.util as imputil, sys
+# This function must be picklable.
+def process_batch(batchid, reads, config):
+    try:
+        return SignalAnalyzer(config, batchid).process(reads)
+    except Exception as exc:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        filename = os.path.split(exc_tb.tb_frame.f_code.co_filename)[-1]
+        errorf = StringIO()
+        traceback.print_exc(file=errorf)
 
-    if storage_name not in sys.modules:
-        storage = {
-            'segmodel': load_segmentation_model(config['segmentation_model']),
-            'unsplitmodel': load_segmentation_model(config['unsplit_read_detection_model']),
-            'kmermodel': pd.read_table(config['kmer_model'], header=0, index_col=0),
-        }
-        storage['kmersize'] = len(storage['kmermodel'].index[0])
-
-        if config['barcoding']:
-            from .barcoding import BarcodeDemultiplexer
-            storage['demuxer'] = BarcodeDemultiplexer(config['demultiplexing'])
-
-        if config['albacore_onthefly']:
-            from .basecall_albacore import AlbacoreBroker
-            storage['albacore'] = AlbacoreBroker(config['albacore_configuration'],
-                                                 storage['kmersize'])
-
-        fakespec = imputil.spec_from_file_location('fake', 'fake.py')
-        persmod = imputil.module_from_spec(fakespec)
-        sys.modules[storage_name] = persmod
-        setattr(persmod, 'storage', storage)
-    else:
-        storage = sys.modules[storage_name].storage
-
-    analyzer.segmodel = storage['segmodel']
-    analyzer.unsplitmodel = storage['unsplitmodel']
-    analyzer.kmermodel = storage['kmermodel']
-    analyzer.kmersize = storage['kmersize']
-    if 'demuxer' in storage:
-        analyzer.demuxer = storage['demuxer']
-    if 'albacore' in storage:
-        analyzer.albacore = storage['albacore']
+        return (-1, '[{filename}:{lineno}] Unhandled exception {name}: {msg}'.format(
+                        filename=filename, lineno=exc_tb.tb_lineno,
+                        name=type(exc).__name__, msg=str(exc)), errorf.getvalue())
 
 
 class SignalAnalyzer:
@@ -93,7 +70,7 @@ class SignalAnalyzer:
     EVENT_DUMP_FIELDS = list(zip(_EVENT_DUMP_FIELD_NAMES, _EVENT_DUMP_FIELD_DTYPES))
 
     def __init__(self, config, batchid):
-        load_persistence_store(config, self)
+        WorkerPersistenceStorage(config).retrieve_objects(self)
 
         self.config = config
         self.inputdir = config['inputdir']
@@ -101,39 +78,88 @@ class SignalAnalyzer:
         self.workerid = sha1(mp.current_process().name.encode()).hexdigest()[:16]
         self.batchid = batchid
         self.formatted_batchid = format(batchid, '08d')
+        self.open_dumps()
+
+    def process(self, reads):
+        inputdir = self.config['inputdir']
+        results, contexts = [], {}
+
+        # Initialize processors and preload signals from fast5
+        nextprocs = []
+        prepare_loading = self.loader.prepare_loading
+        for f5file in reads:
+            if not os.path.exists(os.path.join(inputdir, f5file)):
+                results.append({'filename': f5file, 'status': 'disappeared'})
+                continue
+
+            try:
+                ctx = prepare_loading(f5file)
+                if ctx['status']:
+                    early_errors.append(ctx)
+                else:
+                    read_id = ctx['meta']['read_id']
+                    siganal = SignalAnalysis(ctx, self)
+                    nextprocs.append(siganal)
+                    contexts[read_id] = ctx
+            except Exception as exc:
+                error = self.pack_unhandled_exception(filename, exc, sys.exc_info())
+                results.append(error)
+
+        # Determine scaling parameters
+        self.loader.fit_scalers(contexts)
+
+        # Perform the main analysis procedures
+        procs, nextprocs = nextprocs, []
+        for siganal in procs:
+            try:
+                siganal.process()
+            except Exception as exc:
+                error = self.pack_unhandled_exception(filename, exc, sys.exc_info())
+                siganal.context['meta'].update(error)
+            else:
+                nextprocs.append(siganal)
+
+        # Call barcode identities for demultiplexing
+        if self.config['barcoding']:
+            self.demuxer.predict(contexts)
+
+        # Copy the final results
+        for ctx in contexts.values():
+            results.append(ctx['meta'])
+
+        return results
+
+    def pack_unhandled_exception(self, filename, exc, excinfo):
+        exc_type, exc_obj, exc_tb = excinfo
+        filename = os.path.split(exc_tb.tb_frame.f_code.co_filename)[-1]
+        errorf = StringIO()
+        traceback.print_exc(file=errorf)
+
+        errmsg = '[{filename}:{lineno}] Unhandled exception {name}: {msg}\n{exc}'.format(
+            filename=filename, lineno=exc_tb.tb_lineno,
+            name=type(exc).__name__, msg=str(exc), exc=errorf.getvalue())
+
+        return {
+            'filename': filename,
+            'status': 'unknown_error',
+            'error_message': errmsg,
+        }
+
+    def open_dumps(self):
         self.EVENT_DUMP_FIELDS[4] = (self.EVENT_DUMP_FIELDS[4][0], 'S{}'.format(self.kmersize))
 
-        if config['dump_adapter_signals']:
+        if self.config['dump_adapter_signals']:
             self.adapter_dump_file, self.adapter_dump_group = \
                 self.open_dump_file('adapter-dumps', 'adapter')
             self.adapter_dump_list = []
         else:
             self.adapter_dump_file = self.adapter_dump_group = None
 
-        if config['dump_basecalls']:
+        if self.config['dump_basecalls']:
             self.basecall_dump_file, self.basecall_dump_group = \
                 self.open_dump_file('events', 'basecalled_events')
         else:
             self.basecall_dump_file = self.basecall_dump_group = None
-
-    def process(self, filename):
-        try:
-            return SignalAnalysis(filename, self).process()
-        except Exception as exc:
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            filename = os.path.split(exc_tb.tb_frame.f_code.co_filename)[-1]
-            errorf = StringIO()
-            traceback.print_exc(file=errorf)
-
-            errmsg = '[{filename}:{lineno}] Unhandled exception {name}: {msg}\n{exc}'.format(
-                filename=filename, lineno=exc_tb.tb_lineno,
-                name=type(exc).__name__, msg=str(exc), exc=errorf.getvalue())
-
-            return {
-                'filename': filename,
-                'status': 'unknown_error',
-                'error_message': errmsg,
-            }
 
     def open_dump_file(self, subdir, parentgroup):
         h5filename = os.path.join(self.outputdir, subdir,
@@ -156,9 +182,6 @@ class SignalAnalyzer:
             if read_id not in self.basecall_dump_group:
                 raise
 
-    def predict_barcode_labels(self):
-        return self.demuxer.predict()
-
     def __enter__(self):
         return self
 
@@ -180,50 +203,58 @@ class SignalAnalyzer:
 
 class SignalAnalysis:
 
-    def __init__(self, filename, analyzer):
-        self.filename = filename
+    def __init__(self, context, analyzer):
+        self.context = context
         self.config = analyzer.config
         self.analyzer = proxy(analyzer)
-        self.fast5 = None
-        self.sequence = None
-        self.open_data_files(filename)
 
-    def __enter__(self):
-        return self
+    def process(self):
+        error_set = 'okay'
 
-    def __del__(self):
-        if self.fast5 is not None:
-            self.fast5.close()
-        return False
+        try:
+            if 'load_signal' not in self.context:
+                raise SignalAnalysisError('signal_not_loaded')
 
-    def open_data_files(self, filename):
-        fast5path = os.path.join(self.config['inputdir'], filename)
-        self.fast5 = Fast5File(fast5path, 'r')
-        if len(self.fast5.status.read_info) != 1:
-            raise ValueError('Zero or 2+ reads found in a FAST5 file.')
+            # Load the raw signals for segmentation and in-read adapter signals
+            signal, elspan = self.context['load_signal']()
 
-        self.read_info = self.fast5.status.read_info[0]
-        self.channel_info = self.fast5.get_channel_info()
-        tracking_id = self.fast5.get_tracking_id()
+            # Rough segmentation of signal for extracting adapter signals
+            segments = self.detect_segments(signal, elspan)
+            if 'adapter' not in segments:
+                raise SignalAnalysisError('adapter_not_detected')
 
-        self.sampling_rate = self.channel_info['sampling_rate']
+            # Queue a barcode identification task with signal
+            outname = 'pass'
+            if self.config['barcoding']:
+                self.push_barcode_signal(signal, segments)
 
-        self.metainfo = {
-            'filename': filename,
-            'read_id': self.read_info.read_id,
-            'channel': self.channel_info['channel_number'],
-            'start_time': round(self.read_info.start_time / self.sampling_rate, 3),
-            'run_id': tracking_id['run_id'],
-            'sample_id': tracking_id['sample_id'],
-            'duration': self.read_info.duration,
-            'num_events': self.read_info.event_data_count,
-            'sequence_length': 0,
-            'mean_qscore': 0.,
-        }
+            # Load basecalled events for further jobs working also in base-space
+            events = self.load_events()
+
+            # Trim adapter sequences referring to the segmentation and events
+            if self.config['trim_adapter']:
+                self.trim_adapter(events, segments, elspan)
+
+            # Search for the pattern of adapter signals inside the reads
+            if self.config['filter_unsplit_reads']:
+                isunsplit_read = self.detect_unsplit_read(events, segments, elspan)
+                if isunsplit_read:
+                    raise SignalAnalysisError('unsplit_read')
+
+        except SignalAnalysisError as exc:
+            outname = 'artifact' if exc.args[0] in ('unsplit_read',) else 'fail'
+            error_set = exc.args[0]
+        else:
+            pass
+            #if self.config['dump_adapter_signals']:
+            #    self.dump_adapter_signal(events, segments)
+
+        self.context['meta'].update({
+            'status': error_set,
+            'label': outname,
+        })
 
     def load_events(self):
-        assert self.fast5 is not None
-
         if self.config['albacore_onthefly']: # Call albacore to get basecalls.
             events = self.load_events_from_albacore()
         else: # Load from Analysis/ objects in the FAST5.
@@ -231,79 +262,75 @@ class SignalAnalysis:
 
         events['pos'] = np.cumsum(events['move'])
 
-        # Rescale the signal to fit in the kmer models
-        scaling_params = self.compute_scaling_parameters(events)
-
         duration = np.hstack((np.diff(events['start']), [1])).astype(np.uint64)
         events['end'] = events['start'] + duration
 
-        events['scaled_mean'] = np.poly1d(scaling_params)(events['mean'])
+        events['scaled_mean'] = np.poly1d(self.context['signal_scaling'])(events['mean'])
 
         return events
 
     def load_events_from_fast5(self):
         # Load events (15-sample chunks in albacore).
-        with Basecall1DTools(self.fast5) as bcall:
+        fast5 = self.context['fast5']
+        metainfo = self.context['meta']
+
+        with Basecall1DTools(fast5) as bcall:
             events = bcall.get_event_data('template')
             if events is None:
-                raise PipelineHandledError('not_basecalled')
+                raise SignalAnalysisError('not_basecalled')
 
-            bcall_summary = self.fast5.get_summary_data(bcall.group_name)['basecall_1d_template']
-            self.metainfo['sequence_length'] = bcall_summary['sequence_length']
-            self.metainfo['mean_qscore'] = bcall_summary['mean_qscore']
-            self.metainfo['num_events'] = bcall_summary['num_events']
-
-            self.sequence = bcall.get_called_sequence('template')[1:] + (0,)
+            bcall_summary = fast5.get_summary_data(bcall.group_name)['basecall_1d_template']
+            metainfo['sequence_length'] = bcall_summary['sequence_length']
+            metainfo['mean_qscore'] = bcall_summary['mean_qscore']
+            metainfo['num_events'] = bcall_summary['num_events']
+            metainfo['sequence'] = bcall.get_called_sequence('template')[1:] + (0,)
 
             return pd.DataFrame(events)
 
+    def trim_adapter(self, events, segments, elspan):
+        if 'sequence' not in self.context['meta']:
+            return
+
+        sequence = self.context['meta']['sequence']
+        adapter_end = segments['adapter'][1] * elspan
+        kmer_lead_size = self.analyzer.kmersize // 2
+        adapter_events = events[events['start'] <= adapter_end]
+        if len(adapter_events):
+            adapter_basecall_length = adapter_events['move'].sum() + kmer_lead_size
+        else:
+            adapter_basecall_length = 0
+
+        if adapter_basecall_length > len(sequence[0]):
+            raise SignalAnalysisError('basecall_table_incomplete')
+        elif adapter_basecall_length > 0:
+            self.context['meta']['sequence'] = (
+                sequence[0], sequence[1], adapter_basecall_length)
+
     def load_events_from_albacore(self):
-        rawdata = self.fast5.get_raw_data(scale=True)
+        metainfo = self.context['meta']
+
+        rawdata = self.context['load_signal'](pool=False)[0]
         bcall = (
             self.analyzer.albacore.basecall(
-                rawdata, self.channel_info, self.read_info,
-                os.path.basename(self.filename).rsplit('.', 1)[0]))
+                rawdata, self.context['channel_info'], self.context['read_info'],
+                os.path.basename(metainfo['filename']).rsplit('.', 1)[0]))
         if bcall is None:
-            raise PipelineHandledError('not_basecalled')
+            raise SignalAnalysisError('not_basecalled')
 
-        self.metainfo['sequence_length'] = bcall['sequence_length']
-        self.metainfo['mean_qscore'] = bcall['mean_qscore']
-        self.metainfo['num_events'] = bcall['called_events']
+        metainfo['sequence_length'] = bcall['sequence_length']
+        metainfo['mean_qscore'] = bcall['mean_qscore']
+        metainfo['num_events'] = bcall['called_events']
+        metainfo['sequence'] = bcall['sequence'], bcall['qstring'], 0
 
-        self.sequence = bcall['sequence'], bcall['qstring'], 0
         return bcall['events']
 
-    def compute_scaling_parameters(self, events):
-        # Get median value for each kmer state and match with the ONT kmer model.
-        events_summarized = events.groupby('pos', sort=False,
-                                           group_keys=False, as_index=False).agg(
-                                           {'mean': 'median', 'model_state': 'first'})
-        if len(events_summarized) < self.config['head_signal_processing']['minimum_kmer_states']:
-            raise PipelineHandledError('too_few_events')
-
-        ev_with_mod = pd.merge(events_summarized, self.analyzer.kmermodel,
-                               how='left', left_on='model_state', right_index=True)
-
-        # Filter possible outliers out
-        meanratio = ev_with_mod['mean'] / ev_with_mod['level_mean']
-        inliers = ev_with_mod[meanratio.between(*
-            np.percentile(meanratio,
-                self.config['head_signal_processing']['scaler_outlier_trim_range']))]
-
-        # Do the final regression
-        return np.polyfit(inliers['mean'], inliers['level_mean'], 1)
-
-    def load_raw_signal(self, scaler, start, end):
-        end = min(int(self.fast5.status.read_info[0].duration), end)
-        raw_sig = self.fast5.get_raw_data(start=start, end=end, scale=True)
-        return scaler(medfilt(raw_sig, self.config['head_signal_processing']['median_filter_size']))
-
-    def detect_segments(self, events):
-        headsig = events['scaled_mean'][
-                    :(events['pos'] <= self.config['head_signal_processing']['segmentation_scan_limit']).sum()]
+    def detect_segments(self, signal, elspan):
+        scan_limit = self.config['segmentation']['segmentation_scan_limit'] // elspan
+        if len(signal) > scan_limit:
+            signal = signal[:scan_limit]
 
         # Run Viterbi fitting to signal model
-        plogsum, statecalls = self.analyzer.segmodel.viterbi(headsig)
+        plogsum, statecalls = self.analyzer.segmodel.viterbi(signal)
 
         # Summarize state transitions
         sigparts = {}
@@ -311,23 +338,22 @@ class SignalAnalysis:
                                     lambda st: id(st[1][1])):
             first, state = last, _ = next(positions)
             statename = state[1].name
-            #statename = statecalls[1 + first].name
             for last, _ in positions:
                 pass
             sigparts[statename] = (first, last) # right-inclusive
 
         return sigparts
 
-    def detect_unsplit_read(self, events, segments):
+    def detect_unsplit_read(self, events, segments, elspan):
         # Detect if the read contains two or more adapters in a single read.
         try:
-            payload_start = events.iloc[segments['adapter'][1] + 1]['start']
-        except IndexError:
+            payload_start = (segments['adapter'][1] + 1) * elspan
+        except (KeyError, IndexError):
             return False # Must be an adapter-only read
 
         # Bind settings into the local namespace
-        config = self.config['head_signal_processing']['unsplit_read_detection']
-        _ = lambda name: int(config[name] * self.sampling_rate)
+        config = self.config['unsplit_read_detection']
+        _ = lambda name, rate=self.context['sampling_rate']: int(config[name] * rate)
         window_size = _('window_size'); window_step = _('window_step')
         strict_duration = _('strict_duration')
         duration_cutoffs = [
@@ -397,65 +423,12 @@ class SignalAnalysis:
 
         return False
 
-    def trim_adapter(self, events, segments):
-        if self.sequence is None:
-            return
+    def push_barcode_signal(self, signal, segments):
+        adapter_signal = signal[:segments['adapter'][1]+1]
+        if len(adapter_signal) > 0:
+            self.analyzer.demuxer.push(self.context['meta']['read_id'], adapter_signal)
 
-        adapter_end = segments['adapter'][1]
-        kmer_lead_size = self.analyzer.kmersize // 2
-        adapter_basecall_length = events.iloc[adapter_end]['pos'] + kmer_lead_size
-
-        if adapter_basecall_length > len(self.sequence[0]):
-            raise PipelineHandledError('basecall_table_incomplete')
-        elif adapter_basecall_length > 0:
-            self.sequence = self.sequence[0], self.sequence[1], adapter_basecall_length
-
-    def push_barcode_signal(self, events, segments):
-        adapter_events = events.iloc[slice(*segments['adapter'])]
-        if len(adapter_events) > 0:
-            signal = adapter_events['scaled_mean'].values
-            self.analyzer.demuxer.push(self.metainfo['read_id'], signal)
-
-    def process(self):
-        error_set = 'okay'
-
-        try:
-            events = self.load_events()
-            if self.config['dump_basecalls']:
-                self.analyzer.write_basecalled_events(
-                        self.metainfo['read_id'], events)
-
-            segments = self.detect_segments(events)
-            if 'adapter' not in segments:
-                raise PipelineHandledError('adapter_not_detected')
-
-            if self.config['trim_adapter']:
-                self.trim_adapter(events, segments)
-
-            if self.config['filter_unsplit_reads']:
-                isunsplit_read = self.detect_unsplit_read(events, segments)
-                if isunsplit_read:
-                    raise PipelineHandledError('unsplit_read')
-
-            outname = 'pass'
-            if self.config['barcoding']:
-                self.push_barcode_signal(events, segments)
-
-        except PipelineHandledError as exc:
-            outname = 'artifact' if exc.args[0] in ('unsplit_read',) else 'fail'
-            error_set = exc.args[0]
-        else:
-            if self.config['dump_adapter_signals']:
-                self.dump_adapter_signal(events, segments)
-
-        self.metainfo.update({
-            'status': error_set,
-            'label': outname,
-            'fastq': self.sequence,
-        })
-        return self.metainfo
-
-    def dump_adapter_signal(self, events, segments):
+    def __dump_adapter_signal(self, events, segments):
         adapter_events = events.iloc[slice(*segments['adapter'])]
         if len(adapter_events) > 0:
             try:
@@ -468,35 +441,4 @@ class SignalAnalysis:
                 raise
             self.analyzer.push_adapter_signal_catalog(self.metainfo['read_id'],
                 adapter_events['start'].iloc[0], adapter_events['end'].iloc[-1])
-
-
-# Internal serialization implementation pomegranate to json does not accurately
-# recover the original. Use a custom format here.
-def load_segmentation_model(modeldata):
-    model = HiddenMarkovModel('model')
-
-    states = {}
-    for s in modeldata:
-        if len(s['emission']) == 1:
-            emission = NormalDistribution(*s['emission'][0][:2])
-        else:
-            weights = np.array([w for _, _, w in s['emission']])
-            dists = [NormalDistribution(mu, sigma)
-                     for mu, sigma, _ in s['emission']]
-            emission = GeneralMixtureModel(dists, weights=weights)
-        state = State(emission, name=s['name'])
-
-        states[s['name']] = state
-        model.add_state(state)
-        if 'start_prob' in s:
-            model.add_transition(model.start, state, s['start_prob'])
-
-    for s in modeldata:
-        current = states[s['name']]
-        for nextstate, prob in s['transition']:
-            model.add_transition(current, states[nextstate], prob)
-
-    model.bake()
-
-    return model
 

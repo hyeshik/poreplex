@@ -57,8 +57,8 @@ class FASTQWriter:
     def write_sequences(self, procresult):
         with self.lock:
             for entry in procresult:
-                if entry.get('fastq') is not None:
-                    seq, qual, adapter_length = entry['fastq']
+                if entry.get('sequence') is not None:
+                    seq, qual, adapter_length = entry['sequence']
                     if adapter_length > 0:
                         seq = seq[:-adapter_length]
                         qual = qual[:-adapter_length]
@@ -180,8 +180,8 @@ class NanopolishReadDBWriter:
     def write_sequences(self, procresult):
         with self.lock:
             for entry in procresult:
-                if entry.get('fastq') is not None:
-                    formatted = '>{}\n{}\n'.format(entry['read_id'], entry['fastq'][0])
+                if entry.get('sequence') is not None:
+                    formatted = '>{}\n{}\n'.format(entry['read_id'], entry['sequence'][0])
                     self.seqfiles[entry['label']].write(formatted)
 
                     fast5_relpath = os.path.join('..', 'fast5', self.labelmapping[entry['label']],

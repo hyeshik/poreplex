@@ -24,7 +24,6 @@
 from setuptools import setup
 from distutils.core import Extension
 
-extra_dependencies_barcoding = ['tensorflow >= 1.8.0', 'Keras >= 2.1.6']
 extra_dependencies_live = ['inotify >= 0.2.9']
 
 scrappie_sources = """
@@ -76,11 +75,12 @@ setup(
         'pysam >= 0.14.0',
         'scipy >= 1.0',
         'urwid >= 2.0.0',
+        'tensorflow >= 1.8.0',
+        'Keras >= 2.1.6'
     ],
     extras_require={
-        'barcoding': extra_dependencies_barcoding,
         'live': extra_dependencies_live,
-        'full': extra_dependencies_live + extra_dependencies_barcoding,
+        'full': extra_dependencies_live,
     },
     entry_points={
         'console_scripts': [
