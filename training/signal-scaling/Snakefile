@@ -15,7 +15,7 @@ OUTLIER_FILTERING_SAMPLE_SIZE = 10000
 OUTLIER_CONTAMINATION = 0.02
 
 TESTSET_SPLIT = 0.2
-BALANCING_STDEV_BOOST = 1.8
+TRAINING_STDEV_BOOST = 1.8
 
 KMERMODEL = '../../poreplex/kmer_models/r9.4_180mv_70bps_5mer_RNA/template_median69pA.model'
 
@@ -150,42 +150,10 @@ rule exclude_outliers:
         np.save(output.purified_params, paramsarr[is_inlier])
         np.save(output.purified_signals, open_memmap(input.fullsignals)[is_inlier])
 
-rule remove_batch_effect:
+rule split_testing_set:
     input:
         signalfile='dataarrays/signals-purified.npy',
         paramsfile='dataarrays/scaling-purified.npy'
-    output:
-        signalfile='dataarrays/signals-balanced.npy',
-        paramsfile='dataarrays/scaling-balanced.npy'
-    run:
-        from numpy.lib.format import open_memmap
-        import numpy as np
-        from numpy import random
-
-        signals = open_memmap(input.signalfile, 'r')
-        params = open_memmap(input.paramsfile, 'r')
-
-        target_mean = params.mean(axis=0)
-        target_std = params.std(axis=0) * BALANCING_STDEV_BOOST
-
-        signals_normalized = signals * params[:, 0, np.newaxis] + params[:, 1, np.newaxis]
-
-        del signals
-        randomized_params = np.vstack([
-            np.random.normal(target_mean[0], target_std[0], len(params)),
-            np.random.normal(target_mean[1], target_std[1], len(params))
-        ]).T
-
-        signals_noised = ((signals_normalized - randomized_params[:, 1, np.newaxis])
-                            / randomized_params[:, 0, np.newaxis])
-
-        np.save(output.signalfile, signals_noised)
-        np.save(output.paramsfile, randomized_params)
-
-rule split_testing_set:
-    input:
-        signalfile='dataarrays/signals-balanced.npy',
-        paramsfile='dataarrays/scaling-balanced.npy'
     output:
         signals_testing='dataarrays/signals-testing.npy',
         signals_training='dataarrays/signals-training.npy',
@@ -200,35 +168,67 @@ rule split_testing_set:
         signals = open_memmap(input.signalfile)
         sparams = open_memmap(input.paramsfile)
         total_size = sparams.shape[0]
-        training_size = int(total_size * (1 - TESTSET_SPLIT))
 
-        transform_params = {
-            'scale_mean': sparams[:, 0].mean(),
-            'scale_std': sparams[:, 0].std(),
-            'shift_mean': sparams[:, 1].mean(),
-            'shift_std': sparams[:, 1].std(),
-        }
-        print(repr(transform_params), file=open(output.params_transform_info, 'w'))
-
-        sparams_standardized = np.vstack([
-            (sparams[:, 0] - transform_params['scale_mean']) / transform_params['scale_std'],
-            (sparams[:, 1] - transform_params['shift_mean']) / transform_params['shift_std'],
-        ]).T
-
+        print("Planning splitting the data into training and testing")
         total_indices = np.arange(total_size)
         random.seed(RANDOM_SEED)
         random.shuffle(total_indices)
+        training_size = int(total_size * (1 - TESTSET_SPLIT))
         training_indices = sorted(total_indices[:training_size])
         testing_indices = sorted(total_indices[training_size:])
 
-        print('Total size:', total_size)
-        print('Training set size:', len(training_indices))
-        print('Testing set size:', len(testing_indices))
+        print(' - Total size:', total_size)
+        print(' - Training set size:', len(training_indices))
+        print(' - Testing set size:', len(testing_indices))
 
-        np.save(output.signals_training, signals[training_indices][:, :, np.newaxis])
-        np.save(output.signals_testing, signals[testing_indices][:, :, np.newaxis])
-        np.save(output.params_training, sparams_standardized[training_indices])
-        np.save(output.params_testing, sparams_standardized[testing_indices])
+        print("Spliting")
+        training_x = signals[training_indices]
+        training_y = sparams[training_indices]
+        testing_x = signals[testing_indices]
+        testing_y = sparams[testing_indices]
+
+        print("Setting target mean and stdev for the redispersed training data")
+        target_mean = training_y.mean(axis=0)
+        target_stdev = training_y.std(axis=0) * TRAINING_STDEV_BOOST
+
+        print("Correcting the training set signals to the standard model")
+        training_x_normed = (training_x * training_y[:, 0, np.newaxis] +
+                             training_y[:, 1, np.newaxis])
+        del training_x, signals
+
+        print("Redistributing the expected outputs of the training set randomly")
+        training_y_redist = np.vstack([
+            random.normal(target_mean[0], target_stdev[0], len(training_y)),
+            random.normal(target_mean[1], target_stdev[1], len(training_y))
+        ]).T
+        training_x_redist = ((training_x_normed - training_y_redist[:, 1, np.newaxis]) /
+                             training_y_redist[:, 0, np.newaxis])
+        del training_y, training_x_normed
+
+        print("Saving parameters for recovery of the outputs")
+        transform_params = {
+            'scale_mean': target_mean[0],
+            'scale_std': target_stdev[0],
+            'shift_mean': target_mean[1],
+            'shift_std': target_stdev[1],
+        }
+        print(repr(transform_params), file=open(output.params_transform_info, 'w'))
+
+        print("Balance the variances of output variables")
+        training_y_final = np.vstack([
+            (training_y_redist[:, 0] - target_mean[0]) / target_stdev[0],
+            (training_y_redist[:, 1] - target_mean[1]) / target_stdev[1],
+        ]).T
+        testing_y_final = np.vstack([
+            (testing_y[:, 0] - target_mean[0]) / target_stdev[0],
+            (testing_y[:, 1] - target_mean[1]) / target_stdev[1],
+        ]).T
+
+        print("Saving the transformed values")
+        np.save(output.signals_training, training_x_redist[:, :, np.newaxis])
+        np.save(output.signals_testing, testing_x[:, :, np.newaxis])
+        np.save(output.params_training, training_y_final)
+        np.save(output.params_testing, testing_y_final)
 
 rule make_mini_dataset: # for development
     input: 'dataarrays/{name}.npy'
