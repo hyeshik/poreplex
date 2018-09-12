@@ -31,25 +31,23 @@ class BarcodeDemultiplexer:
         self.model = self.load_model()
         self.unclassified_fallback = 'pass' # label for undetermined reads
         self.signals = []
-        self.signal_readids = []
-        self.unclassified = []
+        self.signal_assoc_read = []
 
     def clear(self):
         del self.signals[:]
-        del self.signal_readids[:]
-        del self.unclassified[:]
+        del self.signal_assoc_read[:]
 
     def load_model(self):
         model_file = os.path.join(os.path.dirname(__file__),
                         'presets', self.config['demux_model'])
         return keras.models.load_model(model_file)
 
-    def push(self, read_id, signal):
+    def push(self, npread, signal):
         minlen = self.config['minimum_dna_length']
         maxlen = self.config['maximum_dna_length']
 
         if not minlen <= len(signal) <= maxlen:
-            self.unclassified.append(read_id)
+            npread.set_label(self.unclassified_fallback)
             return
 
         trimlength = self.config['signal_trim_length']
@@ -57,13 +55,11 @@ class BarcodeDemultiplexer:
             signal = signal[-trimlength:]
         elif len(signal) < trimlength:
             signal = np.pad(signal, (trimlength - len(signal), 0), 'constant')
+
         self.signals.append(signal)
-        self.signal_readids.append(read_id)
+        self.signal_assoc_read.append(npread)
 
-    def predict(self, contexts):
-        for read_id in self.unclassified:
-            contexts[read_id]['meta']['label'] = self.unclassified_fallback
-
+    def predict(self):
         if len(self.signals) > 0:
             signals = np.array(self.signals)[:, :, np.newaxis]
             predweights = self.model.predict(signals,
@@ -72,9 +68,8 @@ class BarcodeDemultiplexer:
             predlabel_probs = np.amax(predweights, axis=1)
 
             predvalid = predlabel_probs >= self.config['pred_weight_cutoff']
-            for read_id, is_valid, bcid in zip(self.signal_readids, predvalid, predlabels):
-                contexts[read_id]['meta']['label'] = (
-                    int(bcid) if is_valid else self.unclassified_fallback)
+            for npread, is_valid, bcid in zip(self.signal_assoc_read, predvalid, predlabels):
+                npread.set_label(int(bcid) if is_valid else self.unclassified_fallback)
 
 if __name__ == '__main__':
     import yaml

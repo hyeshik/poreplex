@@ -23,7 +23,6 @@
 from weakref import proxy
 from itertools import groupby
 from ont_fast5_api.fast5_file import Fast5File
-from ont_fast5_api.analysis_tools.basecall_1d import Basecall1DTools
 import multiprocessing as mp
 import numpy as np
 import pandas as pd
@@ -82,7 +81,7 @@ class SignalAnalyzer:
 
     def process(self, reads):
         inputdir = self.config['inputdir']
-        results, contexts = [], {}
+        results, loaded = [], []
 
         # Initialize processors and preload signals from fast5
         nextprocs = []
@@ -93,20 +92,19 @@ class SignalAnalyzer:
                 continue
 
             try:
-                ctx = prepare_loading(f5file)
-                if ctx['status']:
-                    early_errors.append(ctx)
-                else:
-                    read_id = ctx['meta']['read_id']
-                    siganal = SignalAnalysis(ctx, self)
+                npread = prepare_loading(f5file)
+                if npread.has_signal():
+                    siganal = SignalAnalysis(npread, self)
                     nextprocs.append(siganal)
-                    contexts[read_id] = ctx
+                    loaded.append(npread)
+                else:
+                    results.append(npread.report())
             except Exception as exc:
-                error = self.pack_unhandled_exception(filename, exc, sys.exc_info())
+                error = self.pack_unhandled_exception(f5file, exc, sys.exc_info())
                 results.append(error)
 
         # Determine scaling parameters
-        self.loader.fit_scalers(contexts)
+        self.loader.fit_scalers()
 
         # Perform the main analysis procedures
         procs, nextprocs = nextprocs, []
@@ -114,18 +112,19 @@ class SignalAnalyzer:
             try:
                 siganal.process()
             except Exception as exc:
-                error = self.pack_unhandled_exception(filename, exc, sys.exc_info())
-                siganal.context['meta'].update(error)
+                error = self.pack_unhandled_exception(f5file, exc, sys.exc_info())
+                siganal.set_error(error)
             else:
                 nextprocs.append(siganal)
+                siganal.clear_cache()
 
         # Call barcode identities for demultiplexing
         if self.config['barcoding']:
-            self.demuxer.predict(contexts)
+            self.demuxer.predict()
 
         # Copy the final results
-        for ctx in contexts.values():
-            results.append(ctx['meta'])
+        for npread in loaded:
+            results.append(npread.report())
 
         return results
 
@@ -203,23 +202,30 @@ class SignalAnalyzer:
 
 class SignalAnalysis:
 
-    def __init__(self, context, analyzer):
-        self.context = context
+    def __init__(self, npread, analyzer):
+        self.npread = npread
         self.config = analyzer.config
         self.analyzer = proxy(analyzer)
 
+    def set_error(self, error):
+        self.npread.set_error(error['status'], error['error_message'])
+
+    def clear_cache(self):
+        self.npread.close()
+
     def process(self):
         error_set = 'okay'
+        stride = self.config['signal_processing']['rough_signal_stride']
 
         try:
-            if 'load_signal' not in self.context:
+            if not self.npread.has_signal():
                 raise SignalAnalysisError('signal_not_loaded')
 
             # Load the raw signals for segmentation and in-read adapter signals
-            signal, elspan = self.context['load_signal']()
+            signal = self.npread.load_signal(pool=stride)
 
             # Rough segmentation of signal for extracting adapter signals
-            segments = self.detect_segments(signal, elspan)
+            segments = self.detect_segments(signal, stride)
             if 'adapter' not in segments:
                 raise SignalAnalysisError('adapter_not_detected')
 
@@ -233,11 +239,11 @@ class SignalAnalysis:
 
             # Trim adapter sequences referring to the segmentation and events
             if self.config['trim_adapter']:
-                self.trim_adapter(events, segments, elspan)
+                self.trim_adapter(events, segments, stride)
 
             # Search for the pattern of adapter signals inside the reads
             if self.config['filter_unsplit_reads']:
-                isunsplit_read = self.detect_unsplit_read(events, segments, elspan)
+                isunsplit_read = self.detect_unsplit_read(events, segments, stride)
                 if isunsplit_read:
                     raise SignalAnalysisError('unsplit_read')
 
@@ -249,80 +255,44 @@ class SignalAnalysis:
             #if self.config['dump_adapter_signals']:
             #    self.dump_adapter_signal(events, segments)
 
-        self.context['meta'].update({
-            'status': error_set,
-            'label': outname,
-        })
+        self.npread.set_status(error_set)
+        self.npread.set_label(outname)
 
     def load_events(self):
         if self.config['albacore_onthefly']: # Call albacore to get basecalls.
-            events = self.load_events_from_albacore()
+            events = self.npread.call_albacore(self.analyzer.albacore)
         else: # Load from Analysis/ objects in the FAST5.
-            events = self.load_events_from_fast5()
+            events = self.npread.load_fast5_events()
 
         events['pos'] = np.cumsum(events['move'])
 
         duration = np.hstack((np.diff(events['start']), [1])).astype(np.uint64)
         events['end'] = events['start'] + duration
 
-        events['scaled_mean'] = np.poly1d(self.context['signal_scaling'])(events['mean'])
+        if self.npread.scaling_params is None:
+            raise Exception('Signal scaling is not available yet.')
+
+        events['scaled_mean'] = np.poly1d(self.npread.scaling_params)(events['mean'])
 
         return events
 
-    def load_events_from_fast5(self):
-        # Load events (15-sample chunks in albacore).
-        fast5 = self.context['fast5']
-        metainfo = self.context['meta']
-
-        with Basecall1DTools(fast5) as bcall:
-            events = bcall.get_event_data('template')
-            if events is None:
-                raise SignalAnalysisError('not_basecalled')
-
-            bcall_summary = fast5.get_summary_data(bcall.group_name)['basecall_1d_template']
-            metainfo['sequence_length'] = bcall_summary['sequence_length']
-            metainfo['mean_qscore'] = bcall_summary['mean_qscore']
-            metainfo['num_events'] = bcall_summary['num_events']
-            metainfo['sequence'] = bcall.get_called_sequence('template')[1:] + (0,)
-
-            return pd.DataFrame(events)
-
     def trim_adapter(self, events, segments, elspan):
-        if 'sequence' not in self.context['meta']:
+        sequence = self.npread.sequence
+        if sequence is not None:
             return
 
-        sequence = self.context['meta']['sequence']
         adapter_end = segments['adapter'][1] * elspan
         kmer_lead_size = self.analyzer.kmersize // 2
         adapter_events = events[events['start'] <= adapter_end]
-        if len(adapter_events):
-            adapter_basecall_length = adapter_events['move'].sum() + kmer_lead_size
-        else:
-            adapter_basecall_length = 0
+        if len(adapter_events) <= 0:
+            return
+
+        adapter_basecall_length = adapter_events['move'].sum() + kmer_lead_size
 
         if adapter_basecall_length > len(sequence[0]):
             raise SignalAnalysisError('basecall_table_incomplete')
         elif adapter_basecall_length > 0:
-            self.context['meta']['sequence'] = (
-                sequence[0], sequence[1], adapter_basecall_length)
-
-    def load_events_from_albacore(self):
-        metainfo = self.context['meta']
-
-        rawdata = self.context['load_signal'](pool=False)[0]
-        bcall = (
-            self.analyzer.albacore.basecall(
-                rawdata, self.context['channel_info'], self.context['read_info'],
-                os.path.basename(metainfo['filename']).rsplit('.', 1)[0]))
-        if bcall is None:
-            raise SignalAnalysisError('not_basecalled')
-
-        metainfo['sequence_length'] = bcall['sequence_length']
-        metainfo['mean_qscore'] = bcall['mean_qscore']
-        metainfo['num_events'] = bcall['called_events']
-        metainfo['sequence'] = bcall['sequence'], bcall['qstring'], 0
-
-        return bcall['events']
+            self.npread.set_adapter_trimming_length(adapter_basecall_length)
 
     def detect_segments(self, signal, elspan):
         scan_limit = self.config['segmentation']['segmentation_scan_limit'] // elspan
@@ -353,7 +323,7 @@ class SignalAnalysis:
 
         # Bind settings into the local namespace
         config = self.config['unsplit_read_detection']
-        _ = lambda name, rate=self.context['sampling_rate']: int(config[name] * rate)
+        _ = lambda name, rate=self.npread.sampling_rate: int(config[name] * rate)
         window_size = _('window_size'); window_step = _('window_step')
         strict_duration = _('strict_duration')
         duration_cutoffs = [
@@ -426,7 +396,7 @@ class SignalAnalysis:
     def push_barcode_signal(self, signal, segments):
         adapter_signal = signal[:segments['adapter'][1]+1]
         if len(adapter_signal) > 0:
-            self.analyzer.demuxer.push(self.context['meta']['read_id'], adapter_signal)
+            self.analyzer.demuxer.push(self.npread, adapter_signal)
 
     def __dump_adapter_signal(self, events, segments):
         adapter_events = events.iloc[slice(*segments['adapter'])]

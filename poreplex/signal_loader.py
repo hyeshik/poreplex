@@ -27,7 +27,11 @@ import pandas as pd
 import os
 from functools import partial
 from .keras_wrap import keras
+from .signal_analyzer import SignalAnalysisError
 from ont_fast5_api.fast5_file import Fast5File
+from ont_fast5_api.analysis_tools.basecall_1d import Basecall1DTools
+
+__all__ = ['SignalLoader', 'NanoporeRead']
 
 class SignalLoader:
 
@@ -36,11 +40,11 @@ class SignalLoader:
         self.fast5prefix = fast5prefix
         self.scaler_model, self.scaler_cfg = self.load_scaler_model()
         self.head_signals = []
-        self.head_signal_readids = []
+        self.head_signal_assoc_reads = []
 
     def clear(self):
         del self.head_signals[:]
-        del self.head_signal_readids[:]
+        del self.head_signal_assoc_reads[:]
 
     def load_scaler_model(self):
         model_file = os.path.join(os.path.dirname(__file__),
@@ -58,77 +62,21 @@ class SignalLoader:
         return keras.models.load_model(model_file), scaler_cfg
 
     def prepare_loading(self, filename):
-        fast5path = os.path.join(self.fast5prefix, filename)
+        npread = NanoporeRead(filename, self.fast5prefix)
+        signal_means = npread.load_padded_signal_head(
+                self.scaler_cfg['length'], self.scaler_cfg['stride'],
+                self.scaler_cfg['min_length'])
 
-        fast5 = Fast5File(fast5path, 'r')
-        if len(fast5.status.read_info) != 1:
-            return {
-                'filename': filename,
-                'status': 'irregular_fast5',
-            }
+        if signal_means is not None:
+            self.head_signals.append(signal_means)
+            self.head_signal_assoc_reads.append(npread)
 
-        read_info = fast5.status.read_info[0]
-        channel_info = fast5.get_channel_info()
-        tracking_id = fast5.get_tracking_id()
+        return npread
 
-        sampling_rate = channel_info['sampling_rate']
+    def fit_scalers(self):
+        if len(self.head_signals) <= 0:
+            return
 
-        metainfo = {
-            'filename': filename,
-            'read_id': read_info.read_id,
-            'channel': channel_info['channel_number'],
-            'start_time': round(read_info.start_time / sampling_rate, 3),
-            'run_id': tracking_id['run_id'],
-            'sample_id': tracking_id['sample_id'],
-            'duration': read_info.duration,
-            'num_events': read_info.event_data_count,
-            'sequence_length': 0,
-            'mean_qscore': 0.,
-        }
-
-        context = {
-            'read_info': read_info,
-            'channel_info': channel_info,
-            'tracking_id': tracking_id,
-            'fast5': fast5,
-            'sampling_rate': sampling_rate,
-            'meta': metainfo,
-            'status': '',
-            'full_raw_signal': None,
-        }
-
-        error_status = self.load_padded_signal_head(fast5, read_info)
-        if error_status:
-            context['status'] = error_status
-
-        return context
-
-    def load_padded_signal_head(self, fast5, read_info):
-        length_limit = self.scaler_cfg['length']
-        stride = self.scaler_cfg['stride']
-
-        sigload_length = min(length_limit, read_info.duration)
-        sigload_length = sigload_length - sigload_length % stride
-
-        signal = fast5.get_raw_data(end=sigload_length, scale=True)
-        if len(signal) % stride > 0:
-            signal = signal[:-(len(signal) % stride)]
-
-        if len(signal) < self.scaler_cfg['min_length']:
-            return 'scaler_signal_too_short'
-
-        signal_means = signal.reshape([len(signal) // stride, stride]
-                                      ).mean(axis=1, dtype=np.float32)
-        length_limit //= stride
-        if len(signal_means) < length_limit:
-            signal_means = np.pad(signal_means, [length_limit - len(signal_means), 0],
-                                  'constant')
-
-        # Add the processed signal and read id to the queue
-        self.head_signals.append(signal_means)
-        self.head_signal_readids.append(read_info.read_id)
-
-    def fit_scalers(self, contexts):
         batch_size = self.config['scaler_maximum_batch_size']
         scfg = self.scaler_cfg
 
@@ -137,40 +85,175 @@ class SignalLoader:
         scaling_params = np.transpose([
             scfg['xfrm_scale'](predmtx[:, 0]), scfg['xfrm_shift'](predmtx[:, 1])])
 
-        for read_id, paramset in zip(self.head_signal_readids, scaling_params):
-            context = contexts[read_id]
+        for npread, paramset in zip(self.head_signal_assoc_reads, scaling_params):
             paramset = np.array(paramset, dtype=scfg['dtype'])
-
-            f_load = partial(load_signal, context, paramset, scfg['stride'])
-
-            context['signal_scaling'] = paramset
-            context['load_signal'] = f_load
+            npread.set_scaling_params(paramset)
 
 
-def load_signal(context, scaling, stride=None, end=None, pool=True, pad=False):
-    # Load from the cache if available
-    if context['full_raw_signal'] is not None:
-        sig = context['full_raw_signal']
-    else:
-        sig = context['fast5'].get_raw_data(end=end, scale=True)
-        if end is None:
-            context['full_raw_signal'] = sig
+class NanoporeRead:
 
-    if pool:
-        cutend = len(sig) - len(sig) % stride
-        sig = sig[:cutend].reshape([len(sig) // stride, stride]
-                                   ).mean(axis=1, dtype=np.float32)
-    else:
-        stride = 1
+    fast5 = full_raw_signal = read_info = error_message = None
+    sequence_length = mean_qscore = 0
+    sequence = scaling_params = label = None
 
-    if end is not None:
-        expected_size = end // stride
-        if len(sig) > expected_size:
-            sig = sig[-expected_size:]
-        elif pad and len(sig) < expected_size:
-            sig = np.pad(sig, [expected_size - len(sig), 0], 'constant')
+    def __init__(self, filename, srcdir):
+        self.fullpath = os.path.join(srcdir, filename)
+        self.filename = filename
+        self.status = 'initializing'
+        self.load()
 
-    return np.poly1d(scaling)(sig), stride
+    def __del__(self):
+        self.close()
+
+    def set_status(self, newstatus):
+        self.status = newstatus
+
+    def set_error(self, status, error_message):
+        self.status = status
+        self.error_message = error_message
+
+    def set_scaling_params(self, params):
+        self.scaling_params = params
+
+    def set_label(self, newlabel):
+        self.label = newlabel
+
+    def set_adapter_trimming_length(self, newlength):
+        if self.sequence is None:
+            raise Exception('Sequence is not set.')
+        self.sequence = self.sequence[:2] + (newlength,)
+
+    def has_signal(self):
+        return self.read_info is not None
+
+    def close(self):
+        self.full_raw_signal = None
+        if self.fast5 is not None:
+            self.fast5.close()
+            self.fast5 = None
+
+    def report(self):
+        rep = {'filename': self.filename, 'status': self.status}
+
+        if self.read_info is not None:
+            rep.update({
+                'read_id': self.read_info.read_id,
+                'channel': self.channel_info['channel_number'],
+                'start_time': round(self.read_info.start_time / self.sampling_rate, 3),
+                'run_id': self.tracking_id['run_id'],
+                'sample_id': self.tracking_id['sample_id'],
+                'duration': self.read_info.duration,
+                'num_events': self.read_info.event_data_count,
+                'sequence_length': self.sequence_length,
+                'mean_qscore': self.mean_qscore,
+            })
+
+        if self.sequence is not None:
+            rep['sequence'] = self.sequence
+
+        if self.error_message:
+            rep['error_message'] = self.error_message
+
+        if self.label is not None:
+            rep['label'] = self.label
+
+        return rep
+
+    def load(self):
+        fast5 = Fast5File(self.fullpath, 'r')
+        if len(fast5.status.read_info) != 1:
+            self.set_status('irregular_fast5')
+            fast5.close()
+            return
+
+        self.fast5 = fast5
+        self.read_info = fast5.status.read_info[0]
+        self.channel_info = fast5.get_channel_info()
+        self.tracking_id = fast5.get_tracking_id()
+        self.sampling_rate = self.channel_info['sampling_rate']
+
+    def load_padded_signal_head(self, length_limit, stride, min_length):
+        sigload_length = min(length_limit, self.read_info.duration)
+        sigload_length = sigload_length - sigload_length % stride
+
+        signal = self.fast5.get_raw_data(end=sigload_length, scale=True)
+        if len(signal) % stride > 0:
+            signal = signal[:-(len(signal) % stride)]
+
+        if len(signal) < min_length:
+            self.set_status('scaler_signal_too_short')
+            return
+
+        signal_means = signal.reshape([len(signal) // stride, stride]
+                                      ).mean(axis=1, dtype=np.float32)
+        length_limit //= stride
+        if len(signal_means) < length_limit:
+            signal_means = np.pad(signal_means, [length_limit - len(signal_means), 0],
+                                  'constant')
+
+        return signal_means
+
+    def load_signal(self, end=None, pool=None, pad=False):
+        # Load from the cache if available
+        if self.full_raw_signal is not None:
+            sig = self.full_raw_signal
+        else:
+            if self.fast5 is None:
+                raise Exception('Fast5 must be open for getting signals.')
+            sig = self.fast5.get_raw_data(end=end, scale=True)
+            if end is None:
+                self.full_raw_signal = sig
+
+        if pool is not None and pool > 1:
+            cutend = len(sig) - len(sig) % pool
+            sig = sig[:cutend].reshape([len(sig) // pool, pool]
+                                       ).mean(axis=1, dtype=np.float32)
+        else:
+            pool = 1
+
+        if end is not None:
+            expected_size = end // pool
+            if len(sig) > expected_size:
+                sig = sig[-expected_size:]
+            elif pad and len(sig) < expected_size:
+                sig = np.pad(sig, [expected_size - len(sig), 0], 'constant')
+
+        if self.scaling_params is None:
+            raise Exception('Scaling parameters were not set for this read.')
+
+        return np.poly1d(self.scaling_params)(sig)
+
+    def load_fast5_events(self):
+        if self.fast5 is None:
+            raise Exception('Fast5 must be open for getting events.')
+
+        with Basecall1DTools(self.fast5) as bcall:
+            events = bcall.get_event_data('template')
+            if events is None:
+                raise SignalAnalysisError('not_basecalled')
+
+            bcall_summary = self.fast5.get_summary_data(bcall.group_name)['basecall_1d_template']
+            self.sequence_length = bcall_summary['sequence_length']
+            self.mean_qscore = bcall_summary['mean_qscore']
+            self.num_events = bcall_summary['num_events']
+            self.sequence = bcall.get_called_sequence('template')[1:] + (0,)
+
+            return pd.DataFrame(events)
+
+    def call_albacore(self, albacore):
+        rawdata = self.load_signal(pool=False)
+        bcall = albacore.basecall(
+                    rawdata, self.channel_info, self.read_info,
+                    os.path.basename(self.filename).rsplit('.', 1)[0])
+        if bcall is None:
+            raise SignalAnalysisError('not_basecalled')
+
+        self.sequence_length = bcall['sequence_length']
+        self.mean_qscore = bcall['mean_qscore']
+        self.num_events = bcall['called_events']
+        self.sequence = bcall['sequence'], bcall['qstring'], 0
+
+        return bcall['events']
 
 
 if __name__ == '__main__':
