@@ -46,12 +46,12 @@ def build_layers(input_shape, output_variables, cudnn=False):
 
     model = Sequential()
 
-    model.add(lstm_layer(128, return_sequences=True, input_shape=input_shape,
+    model.add(lstm_layer(96, return_sequences=True, input_shape=input_shape,
                          **lstm_options))
-    model.add(Dropout(0.35))
+    model.add(Dropout(0.2))
 
-    model.add(lstm_layer(128, return_sequences=False, **lstm_options))
-    model.add(Dropout(0.5))
+    model.add(lstm_layer(96, return_sequences=False, **lstm_options))
+    model.add(Dropout(0.35))
 
     model.add(Dense(output_variables, activation='linear'))
     return model

@@ -23,7 +23,7 @@
 
 import h5py
 
-with h5py.File('trained-mode.lstm-0.94-0.90/final-model.hdf5') as h5:
+with h5py.File('trained-model/final-model.hdf5') as h5:
     attrs = h5['model_weights'].attrs
     attrs['output_transform'] = open('dataarrays/scaling-transform.txt', 'rb').read()
     attrs['input_defs'] = repr({
@@ -32,5 +32,5 @@ with h5py.File('trained-mode.lstm-0.94-0.90/final-model.hdf5') as h5:
         'length': 30000,
         'min_length': 9000,
     }).encode('ascii')
-    attrs['model_version'] = b'poreplex-scaler r1 (2018-09-09)'
+    attrs['model_version'] = b'poreplex-scaler r2 (2018-09-13)'
 
