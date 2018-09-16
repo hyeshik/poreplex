@@ -226,6 +226,10 @@ class SignalAnalysis:
             if 'adapter' not in segments:
                 raise SignalAnalysisError('adapter_not_detected')
 
+            # Dump adapter signals on request from the command line
+            if self.config['dump_adapter_signals']:
+                self.dump_adapter_signal(signal, segments, stride)
+
             # Queue a barcode identification task with signal
             if self.config['barcoding']:
                 self.push_barcode_signal(signal, segments)
@@ -252,8 +256,6 @@ class SignalAnalysis:
             self.npread.set_label(outname)
         else:
             self.npread.set_label('pass')
-            #if self.config['dump_adapter_signals']:
-            #    self.dump_adapter_signal(events, segments)
 
     def load_events(self):
         if self.config['albacore_onthefly']: # Call albacore to get basecalls.
@@ -395,17 +397,21 @@ class SignalAnalysis:
         if len(adapter_signal) > 0:
             self.analyzer.demuxer.push(self.npread, adapter_signal)
 
-    def __dump_adapter_signal(self, events, segments):
-        adapter_events = events.iloc[slice(*segments['adapter'])]
-        if len(adapter_events) > 0:
+    def dump_adapter_signal(self, signal, segments, stride):
+        adapter_signal = signal[:segments['adapter'][1]+1]
+        if len(adapter_signal) > 0:
+            read_id = self.npread.read_info.read_id
             try:
-                self.analyzer.adapter_dump_group.create_dataset(self.metainfo['read_id'],
-                    shape=(len(adapter_events),), dtype=np.float32,
-                    data=adapter_events['scaled_mean'])
+                self.analyzer.adapter_dump_group.create_dataset(read_id,
+                    shape=(len(adapter_signal),), dtype=np.float32,
+                    data=adapter_signal)
             except:
-                if self.metainfo['read_id'] in self.analyzer.adapter_dump_group:
+                if read_id in self.analyzer.adapter_dump_group:
                     return
                 raise
-            self.analyzer.push_adapter_signal_catalog(self.metainfo['read_id'],
-                adapter_events['start'].iloc[0], adapter_events['end'].iloc[-1])
+
+            start_pos = 0
+            end_pos = len(adapter_signal) * stride
+
+            self.analyzer.push_adapter_signal_catalog(read_id, start_pos, end_pos)
 
