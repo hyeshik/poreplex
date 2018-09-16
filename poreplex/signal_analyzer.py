@@ -175,12 +175,15 @@ class SignalAnalyzer:
     def push_adapter_signal_catalog(self, read_id, adapter_start, adapter_end):
         self.adapter_dump_list.append((read_id, adapter_start, adapter_end))
 
-    def write_basecalled_events(self, read_id, events):
+    def write_basecalled_events(self, read_id, events, attrs):
         dataset = np.empty(len(events), dtype=self.EVENT_DUMP_FIELDS)
         for name, dtype in self.EVENT_DUMP_FIELDS:
             dataset[name] = events[name]
         try:
             self.basecall_dump_group[read_id] = dataset
+            objattrs = self.basecall_dump_group[read_id].attrs
+            for attrname, attrvalue in attrs:
+                objattrs[attrname] = attrvalue
         except RuntimeError:
             if read_id not in self.basecall_dump_group:
                 raise
@@ -244,7 +247,8 @@ class SignalAnalysis:
             events = self.load_events()
             if self.config['dump_basecalls']:
                 self.analyzer.write_basecalled_events(
-                        self.npread.read_info.read_id, events)
+                        self.npread.read_info.read_id, events,
+                        self.get_dump_attributes(segments, stride))
 
             # Trim adapter sequences referring to the segmentation and events
             if self.config['trim_adapter']:
@@ -262,6 +266,19 @@ class SignalAnalysis:
             self.npread.set_label(outname)
         else:
             self.npread.set_label('pass')
+
+    def get_dump_attributes(self, segments, stride):
+        attrlist = []
+
+        if self.npread.scaling_params is not None:
+            sp_scale, sp_shift = self.npread.scaling_params
+            attrlist.append(('signal_scale', sp_scale))
+            attrlist.append(('signal_shift', sp_shift))
+
+        if 'adapter' in segments:
+            attrlist.append(('adapter_end', (segments['adapter'][1] + 1) * stride))
+
+        return attrlist
 
     def load_events(self):
         if self.config['albacore_onthefly']: # Call albacore to get basecalls.
