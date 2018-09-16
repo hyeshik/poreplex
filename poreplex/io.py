@@ -203,12 +203,11 @@ class NanopolishReadDBWriter:
 
 class FinalSummaryTracker:
 
-    REPORTING_ORDER = ['pass', 'artifact', 'fail', 'file_error']
+    REPORTING_ORDER = ['pass', 'artifact', 'fail']
     FRIENDLY_LABELS = {
         'pass': 'Successfully processed',
         'fail': 'Processing failed',
         'artifact': 'Possibly artifact',
-        'file_error': 'Failed to open',
     }
     BARCODE_FRIENDLY_NAME = 'Barcoded sample {num} (BC{num})'
     FRIENDLY_STATUS = {
@@ -219,13 +218,11 @@ class FinalSummaryTracker:
             'adapter_not_detected': "3' Adapter could not be located",
             'not_basecalled': 'No albacore basecall data found',
             'scaling_qc_fail': 'Signal scaling failed',
+            'disappeared': 'File is moved to other location',
+            'unknown_error': 'File could not be opened due to unknown error',
         },
         'artifact': {
             'unsplit_read': 'Two or more molecules found in a single read',
-        },
-        'file_error': {
-            'disappeared': 'File is moved to other location',
-            'unknown_error': 'File could not be opened due to unknown error',
         },
     }
 
@@ -243,7 +240,7 @@ class FinalSummaryTracker:
 
     def feed_results(self, results):
         for entry in results:
-            self.counts[entry.get('label', 'file_error'),
+            self.counts[entry.get('label', 'fail'),
                         entry.get('barcode', None),
                         entry['status']] += 1
 

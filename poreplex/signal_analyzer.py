@@ -111,12 +111,15 @@ class SignalAnalyzer:
         procs, nextprocs = nextprocs, []
         for siganal in procs:
             try:
-                siganal.process()
+                if not siganal.is_stopped():
+                    siganal.process()
+                    nextprocs.append(siganal)
+                else:
+                    sys.stdout.flush()
             except Exception as exc:
                 error = self.pack_unhandled_exception(f5file, exc, sys.exc_info())
                 siganal.set_error(error)
-            else:
-                nextprocs.append(siganal)
+            finally:
                 siganal.clear_cache()
 
         # Call barcode identities for demultiplexing
@@ -210,6 +213,9 @@ class SignalAnalysis:
 
     def set_error(self, error):
         self.npread.set_error(error['status'], error['error_message'])
+
+    def is_stopped(self):
+        return self.npread.is_stopped()
 
     def clear_cache(self):
         self.npread.close()

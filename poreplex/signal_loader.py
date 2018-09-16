@@ -128,7 +128,7 @@ class NanoporeRead:
 
     def set_status(self, newstatus, stop=False):
         self.status = newstatus
-        self.stop = self.stopped or stop
+        self.stopped = self.stopped or stop
 
     def set_error(self, status, error_message):
         self.status = status
