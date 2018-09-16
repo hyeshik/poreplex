@@ -213,9 +213,12 @@ class FinalSummaryTracker:
     BARCODE_FRIENDLY_NAME = 'Barcoded sample {num} (BC{num})'
     FRIENDLY_STATUS = {
         'fail': {
+            'scaler_signal_too_short': 'Signal is too short',
+            'irregular_fast5': 'Invalid FAST5 format',
+            'basecall_table_incomplete': 'Basecall table does not match',
             'adapter_not_detected': "3' Adapter could not be located",
             'not_basecalled': 'No albacore basecall data found',
-            'too_few_events': 'Signal is too short',
+            'scaling_qc_fail': 'Signal scaling failed',
         },
         'artifact': {
             'unsplit_read': 'Two or more molecules found in a single read',
