@@ -46,7 +46,8 @@ class SignalAnalysisError(Exception):
 # This function must be picklable.
 def process_batch(batchid, reads, config):
     try:
-        return SignalAnalyzer(config, batchid).process(reads)
+        with SignalAnalyzer(config, batchid) as analyzer:
+            return analyzer.process(reads)
     except Exception as exc:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         filename = os.path.split(exc_tb.tb_frame.f_code.co_filename)[-1]
@@ -231,6 +232,9 @@ class SignalAnalysis:
 
             # Load basecalled events for further jobs working also in base-space
             events = self.load_events()
+            if self.config['dump_basecalls']:
+                self.analyzer.write_basecalled_events(
+                        self.npread.read_info.read_id, events)
 
             # Trim adapter sequences referring to the segmentation and events
             if self.config['trim_adapter']:
