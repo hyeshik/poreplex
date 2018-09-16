@@ -258,11 +258,12 @@ class FinalSummaryTracker:
         column_numeric_format = '{{:{},d}} '.format(column_width)
 
         # Show the header
-        label_fields = [self.LABEL_FORMAT.format('')] + [
-            column_title_format.format(self.barcode_names[bc])
-            for bc in self.barcode_reporting_order
-        ]
-        _(''.join(label_fields))
+        if len(self.barcode_names) > 1:
+            label_fields = [self.LABEL_FORMAT.format('')] + [
+                column_title_format.format(self.barcode_names[bc])
+                for bc in self.barcode_reporting_order
+            ]
+            _(''.join(label_fields))
 
         # Show the table content
         tbl = pd.DataFrame([(k[0], -1 if k[1] is None else k[1], k[2], v)
@@ -288,7 +289,8 @@ class FinalSummaryTracker:
                 linelabel = self.LABEL_BULLET + self.FRIENDLY_STATUS[current_label][lk[1]]
 
             readcount_by_barcode = grp.set_index('barcode')['count'].to_dict()
-            readcounts = [readcount_by_barcode.get(bc, 0) for bc in self.barcode_reporting_order]
+            readcounts = [readcount_by_barcode.get(bc if bc is not None else -1, 0)
+                          for bc in self.barcode_reporting_order]
 
             # Print the read counts
             _(self.LABEL_FORMAT.format(linelabel) +
