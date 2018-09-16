@@ -93,12 +93,12 @@ class SignalAnalyzer:
 
             try:
                 npread = prepare_loading(f5file)
-                if npread.has_signal():
+                if npread.is_stopped():
+                    results.append(npread.report())
+                else:
                     siganal = SignalAnalysis(npread, self)
                     nextprocs.append(siganal)
                     loaded.append(npread)
-                else:
-                    results.append(npread.report())
             except Exception as exc:
                 error = self.pack_unhandled_exception(f5file, exc, sys.exc_info())
                 results.append(error)
@@ -214,13 +214,9 @@ class SignalAnalysis:
         self.npread.close()
 
     def process(self):
-        error_set = 'okay'
         stride = self.config['signal_processing']['rough_signal_stride']
 
         try:
-            if not self.npread.has_signal():
-                raise SignalAnalysisError('signal_not_loaded')
-
             # Load the raw signals for segmentation and in-read adapter signals
             signal = self.npread.load_signal(pool=stride)
 
@@ -230,7 +226,6 @@ class SignalAnalysis:
                 raise SignalAnalysisError('adapter_not_detected')
 
             # Queue a barcode identification task with signal
-            outname = 'pass'
             if self.config['barcoding']:
                 self.push_barcode_signal(signal, segments)
 
@@ -249,14 +244,12 @@ class SignalAnalysis:
 
         except SignalAnalysisError as exc:
             outname = 'artifact' if exc.args[0] in ('unsplit_read',) else 'fail'
-            error_set = exc.args[0]
+            self.npread.set_status(exc.args[0], stop=True)
+            self.npread.set_label(outname)
         else:
-            pass
+            self.npread.set_label('pass')
             #if self.config['dump_adapter_signals']:
             #    self.dump_adapter_signal(events, segments)
-
-        self.npread.set_status(error_set)
-        self.npread.set_label(outname)
 
     def load_events(self):
         if self.config['albacore_onthefly']: # Call albacore to get basecalls.

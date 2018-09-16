@@ -108,21 +108,24 @@ class ProcessingSession:
                                          self.stop, signame)
 
         if self.config['fastq_output']:
-            self.fastq_writer = FASTQWriter(self.config['outputdir'],
-                                            self.config['output_names'])
+            self.fastq_writer = FASTQWriter(
+                self.config['outputdir'], self.config['output_layout'])
+            OUTPUT_NAME_BARCODING_OFF
         if self.config['nanopolish_output']:
-            self.npreaddb_writer = NanopolishReadDBWriter(self.config['outputdir'],
-                                                          self.config['output_names'])
-        self.seqsummary_writer = SequencingSummaryWriter(self.config['outputdir'],
-                                                         self.config['output_names'])
-        self.finalsummary_tracker = FinalSummaryTracker(self.config['output_names'])
+            self.npreaddb_writer = NanopolishReadDBWriter(
+                self.config['outputdir'], self.config['output_layout'])
+        self.seqsummary_writer = SequencingSummaryWriter(
+            self.config['outputdir'], self.config['label_names'],
+            self.config['barcode_names'])
+        self.finalsummary_tracker = FinalSummaryTracker(
+            self.config['label_names'], self.config['barcode_names'])
 
         if self.config['minimap2_index']:
             self.show_message('==> Loading a minimap2 index file')
             self.alignment_writer = AlignmentWriter(
                 self.config['minimap2_index'],
                 os.path.join(self.config['outputdir'], 'bam', '{}.bam'),
-                self.config['output_names'])
+                self.config['output_layout'])
 
         return self
 
@@ -447,7 +450,9 @@ class ProcessingSession:
             aliases = dashboard.load_aliases(self.config['contig_aliases'])
         else:
             aliases = {}
-        view = dashboard.DashboardView(self, self.config['output_names'],
+        raise NotImplemented # XXX: the next line needs to be fixed
+        view = dashboard.DashboardView(self, self.config['label_output_dirs'],
+                                       self.config['barcode_output_dirs'],
                                        'progress', 'mapped_rate',
                                        self.config['analysis_start_delay'],
                                        aliases)

@@ -29,7 +29,6 @@ class BarcodeDemultiplexer:
     def __init__(self, config):
         self.config = config
         self.model = self.load_model()
-        self.unclassified_fallback = 'pass' # label for undetermined reads
         self.signals = []
         self.signal_assoc_read = []
 
@@ -47,7 +46,6 @@ class BarcodeDemultiplexer:
         maxlen = self.config['maximum_dna_length']
 
         if not minlen <= len(signal) <= maxlen:
-            npread.set_label(self.unclassified_fallback)
             return
 
         trimlength = self.config['signal_trim_length']
@@ -69,7 +67,8 @@ class BarcodeDemultiplexer:
 
             predvalid = predlabel_probs >= self.config['pred_weight_cutoff']
             for npread, is_valid, bcid in zip(self.signal_assoc_read, predvalid, predlabels):
-                npread.set_label(int(bcid) if is_valid else self.unclassified_fallback)
+                if is_valid:
+                    npread.set_barcode(int(bcid))
 
 if __name__ == '__main__':
     import yaml

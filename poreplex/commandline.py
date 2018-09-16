@@ -134,17 +134,29 @@ def create_output_directories(config):
 
 
 def setup_output_name_mapping(config):
-    names = {'fail': OUTPUT_NAME_FAILED, 'pass': OUTPUT_NAME_PASSED}
+    label_names = {'fail': OUTPUT_NAME_FAILED, 'pass': OUTPUT_NAME_PASSED}
+
+    if config['filter_unsplit_reads']:
+        label_names['artifact'] = OUTPUT_NAME_ARTIFACT
 
     if config['barcoding']:
         num_barcodes = config['demultiplexing']['number_of_barcodes']
+        barcode_names = {None: OUTPUT_NAME_UNDETERMINED}
         for i in range(num_barcodes):
-            names[i] = OUTPUT_NAME_BARCODES.format(n=i + 1)
+            barcode_names[i] = OUTPUT_NAME_BARCODES.format(n=i + 1)
 
-    if config['filter_unsplit_reads']:
-        names['artifact'] = OUTPUT_NAME_ARTIFACT
+        layout_maps = {
+            (label, bc): os.path.join(labelname, bcname)
+            for label, labelname in label_names.items()
+            for bc, bcname in barcode_names.items()
+        }
+    else:
+        barcode_names = {None: OUTPUT_NAME_BARCODING_OFF}
+        layout_maps = {
+            (label, None): labelname for label, labelname in label_names.items()}
 
-    return names
+    return label_names, barcode_names, layout_maps
+
 
 def show_configuration(config, output):
     if hasattr(output, 'write'): # file-like object
@@ -276,7 +288,8 @@ def main(args):
     config['nanopolish_output'] = args.nanopolish
     config['trim_adapter'] = args.trim_adapter
     config['minimap2_index'] = args.align if args.align else None
-    config['output_names'] = setup_output_name_mapping(config)
+    config['label_names'], config['barcode_names'], config['output_layout'] = \
+        setup_output_name_mapping(config)
 
     fix_options(config)
 

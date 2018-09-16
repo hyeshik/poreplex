@@ -25,6 +25,7 @@ import h5py
 import numpy as np
 import pandas as pd
 import os
+from scipy.stats import norm
 from functools import partial
 from .keras_wrap import keras
 from .signal_analyzer import SignalAnalysisError
@@ -59,6 +60,19 @@ class SignalLoader:
             scaler_cfg['xfrm_scale'] = np.poly1d([xfrm['scale_std'], xfrm['scale_mean']])
             scaler_cfg['xfrm_shift'] = np.poly1d([xfrm['shift_std'], xfrm['shift_mean']])
 
+            # Compute the bounds of predicted outcomes for passing QC. Since the training
+            # data has 1.8 times boosted stdev of the original, the chance of falling
+            # out of this filter should be lower than the setted threshold.
+            qc_threshold_level = self.config['scaler_qc_threshold']
+            qc_threshold_level = [qc_threshold_level, 1 - qc_threshold_level]
+            qc_scale_range = norm.ppf(qc_threshold_level, xfrm['scale_mean'], xfrm['scale_std'])
+            qc_shift_range = norm.ppf(qc_threshold_level, xfrm['shift_mean'], xfrm['shift_std'])
+
+            scaler_cfg['qc_scale'] = (
+                lambda x, range=qc_scale_range: (x >= range[0]) & (x <= range[1]))
+            scaler_cfg['qc_shift'] = (
+                lambda x, range=qc_shift_range: (x >= range[0]) & (x <= range[1]))
+
         return keras.models.load_model(model_file), scaler_cfg
 
     def prepare_loading(self, filename):
@@ -84,29 +98,37 @@ class SignalLoader:
                         np.array(self.head_signals)[:, :, np.newaxis], batch_size)
         scaling_params = np.transpose([
             scfg['xfrm_scale'](predmtx[:, 0]), scfg['xfrm_shift'](predmtx[:, 1])])
+        qc_pass_scale = scfg['qc_scale'](scaling_params[:, 0])
+        qc_pass_shift = scfg['qc_shift'](scaling_params[:, 1])
+        qc_pass = qc_pass_scale & qc_pass_shift
 
-        for npread, paramset in zip(self.head_signal_assoc_reads, scaling_params):
-            paramset = np.array(paramset, dtype=scfg['dtype'])
-            npread.set_scaling_params(paramset)
+        for npread, paramset, ok in zip(self.head_signal_assoc_reads, scaling_params, qc_pass):
+            if ok:
+                paramset = np.array(paramset, dtype=scfg['dtype'])
+                npread.set_scaling_params(paramset)
+            else:
+                npread.set_status('scaling_qc_fail', stop=True)
 
 
 class NanoporeRead:
 
     fast5 = full_raw_signal = read_info = error_message = None
     sequence_length = mean_qscore = 0
-    sequence = scaling_params = label = None
+    sequence = scaling_params = label = barcode = None
 
     def __init__(self, filename, srcdir):
         self.fullpath = os.path.join(srcdir, filename)
         self.filename = filename
-        self.status = 'initializing'
+        self.status = 'okay'
+        self.stopped = False
         self.load()
 
     def __del__(self):
         self.close()
 
-    def set_status(self, newstatus):
+    def set_status(self, newstatus, stop=False):
         self.status = newstatus
+        self.stop = self.stopped or stop
 
     def set_error(self, status, error_message):
         self.status = status
@@ -118,13 +140,16 @@ class NanoporeRead:
     def set_label(self, newlabel):
         self.label = newlabel
 
+    def set_barcode(self, newbarcode):
+        self.barcode = newbarcode
+
     def set_adapter_trimming_length(self, newlength):
         if self.sequence is None:
             raise Exception('Sequence is not set.')
         self.sequence = self.sequence[:2] + (newlength,)
 
-    def has_signal(self):
-        return self.read_info is not None
+    def is_stopped(self):
+        return self.stopped
 
     def close(self):
         self.full_raw_signal = None
@@ -157,12 +182,15 @@ class NanoporeRead:
         if self.label is not None:
             rep['label'] = self.label
 
+        if self.barcode is not None:
+            rep['barcode'] = self.barcode
+
         return rep
 
     def load(self):
         fast5 = Fast5File(self.fullpath, 'r')
         if len(fast5.status.read_info) != 1:
-            self.set_status('irregular_fast5')
+            self.set_status('irregular_fast5', stop=True)
             fast5.close()
             return
 
@@ -181,7 +209,7 @@ class NanoporeRead:
             signal = signal[:-(len(signal) % stride)]
 
         if len(signal) < min_length:
-            self.set_status('scaler_signal_too_short')
+            self.set_status('scaler_signal_too_short', stop=True)
             return
 
         signal_means = signal.reshape([len(signal) // stride, stride]

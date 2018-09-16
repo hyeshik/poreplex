@@ -20,9 +20,10 @@
 # THE SOFTWARE.
 #
 
-__all__ = ['union_intervals', 'errx', 'errprint']
+__all__ = ['union_intervals', 'errx', 'errprint', 'ensure_dir_exists']
 
 import sys
+import os
 
 def union_intervals(iset):
     merged = []
@@ -46,3 +47,10 @@ def errprint(msg, end=None):
     #traceback.print_stack(file=sys.stderr)
     print(msg, file=sys.stderr, end=end)
 
+def ensure_dir_exists(filepath):
+    dirname = os.path.dirname(filepath)
+    if not os.path.isdir(dirname):
+        try:
+            os.makedirs(dirname)
+        except FileExistsError:
+            pass

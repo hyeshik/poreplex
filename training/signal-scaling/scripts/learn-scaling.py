@@ -46,12 +46,12 @@ def build_layers(input_shape, output_variables, cudnn=False):
 
     model = Sequential()
 
-    model.add(lstm_layer(96, return_sequences=True, input_shape=input_shape,
+    model.add(lstm_layer(64, return_sequences=True, input_shape=input_shape,
                          **lstm_options))
-    model.add(Dropout(0.2))
+    model.add(Dropout(0.15))
 
-    model.add(lstm_layer(96, return_sequences=False, **lstm_options))
-    model.add(Dropout(0.35))
+    model.add(lstm_layer(64, return_sequences=False, **lstm_options))
+    model.add(Dropout(0.3))
 
     model.add(Dense(output_variables, activation='linear'))
     return model
@@ -179,9 +179,9 @@ if __name__ == '__main__':
         'ngpu': 2,
         'optimizer': 'adam',
         'earlystopping_min_delta': 0.001,
-        'earlystopping_patience': 10,
-        'batchsize_train': 1024,
-        'batchsize_test': 1024,
+        'earlystopping_patience': 20,
+        'batchsize_train': 2048,
+        'batchsize_test': 2048,
         'epochs': 200,
         'validation_split': 0.3,
         'transform-y': 'dataarrays/scaling-transform.txt',

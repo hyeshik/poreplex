@@ -25,6 +25,7 @@ from pysam import FUNMAP, FREVERSE, FSECONDARY, FSUPPLEMENTARY
 from pysam import AlignmentFile, AlignedSegment
 from struct import pack, unpack, calcsize
 from collections import defaultdict
+from .utils import ensure_dir_exists
 
 MM_IDX_MAGIC = b"MMI\2"
 
@@ -40,6 +41,7 @@ class BAMWriter:
 
     def __init__(self, output, indexed_sequence_list, index_options):
         header = self.build_header(indexed_sequence_list, index_options)
+        ensure_dir_exists(output)
         self.writer = AlignmentFile(output, 'wb', header=header)
 
     def __del__(self):
@@ -63,16 +65,16 @@ class BAMWriter:
 
 class AlignmentWriter:
 
-    def __init__(self, indexfile, output, namemapping):
+    def __init__(self, indexfile, output, output_layout):
         self.aligner = mappy.Aligner(indexfile)
         if not self.aligner:
             raise Exception('Could not open minimap2 index {}.'.format(indexfile))
-        self.writers = self.open_writers(indexfile, output, namemapping)
+        self.writers = self.open_writers(indexfile, output, output_layout)
 
-    def open_writers(self, indexfile, output, namemapping):
+    def open_writers(self, indexfile, output, output_layout):
         indexed_sequences, index_options = list(self.get_indexed_sequence_list(indexfile))
         return {muxid: BAMWriter(output.format(name), indexed_sequences, index_options)
-                for muxid, name in namemapping.items()}
+                for muxid, name in output_layout.items()}
 
     def close(self):
         for muxid, writer in self.writers.items():
@@ -139,8 +141,8 @@ class AlignmentWriter:
             yield (name, flag, h.ctg, h.r_st + 1, h.mapq, fullcigar, '*',
                    0, 0, seq_f, qual_f, 'NM:i:{}'.format(h.NM))
 
-    def map_and_write(self, muxid, name, seq, qual, adapter_length):
-        writer = self.writers[muxid]
+    def map_and_write(self, streamid, name, seq, qual, adapter_length):
+        writer = self.writers[streamid]
         mapped_seqname = None
         if adapter_length > 0:
             seq = seq[:-adapter_length]
@@ -158,17 +160,17 @@ class AlignmentWriter:
         unmapped_counts = defaultdict(int)
 
         for result in results:
-            label = result.get('label', 'fail')
+            streamid = result.get('label', 'fail'), result.get('barcode')
 
             if result.get('sequence') is None or 'read_id' not in result:
                 failed_counts[label] += 1
             else:
-                mapped = self.map_and_write(label, result['read_id'], *result['sequence'])
+                mapped = self.map_and_write(streamid, result['read_id'], *result['sequence'])
 
                 if mapped == '*':
-                    unmapped_counts[label] += 1
+                    unmapped_counts[streamid] += 1
                 else:
-                    mapped_seqs[label].append(mapped)
+                    mapped_seqs[streamid].append(mapped)
 
         return {'mapped': mapped_seqs, 'failed': failed_counts, 'unmapped': unmapped_counts}
 

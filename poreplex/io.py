@@ -28,16 +28,18 @@ from shutil import copyfileobj
 from threading import Lock
 import h5py
 import numpy as np
+import pandas as pd
 import logging
 import os
 from errno import EXDEV, EEXIST
+from .utils import ensure_dir_exists
 
 
 class FASTQWriter:
 
-    def __init__(self, outputdir, names):
-        self.outputdir = outputdir
-        self.names = names
+    def __init__(self, output_dir, output_layout):
+        self.output_dir = output_dir
+        self.output_layout = output_layout
         self.lock = Lock()
 
         self.open_streams()
@@ -45,14 +47,16 @@ class FASTQWriter:
     def open_streams(self):
         self.streams = {
             int_name: BGZFile(self.get_output_path(name), 'w')
-            for int_name, name in self.names.items()}
+            for int_name, name in self.output_layout.items()}
 
     def close(self):
         for stream in self.streams.values():
             stream.close()
 
     def get_output_path(self, name):
-        return os.path.join(self.outputdir, 'fastq', name + '.fastq.gz')
+        output_path = os.path.join(self.output_dir, 'fastq', name + '.fastq.gz')
+        ensure_dir_exists(output_path)
+        return output_path
 
     def write_sequences(self, procresult):
         with self.lock:
@@ -63,15 +67,16 @@ class FASTQWriter:
                         seq = seq[:-adapter_length]
                         qual = qual[:-adapter_length]
 
+                    output_name = entry['label'], entry.get('barcode')
                     formatted = '@{}\n{}\n+\n{}\n'.format(entry['read_id'], seq, qual)
-                    self.streams[entry['label']].write(formatted.encode('ascii'))
+                    self.streams[output_name].write(formatted.encode('ascii'))
 
 
 def link_fast5_files(config, results):
     indir = config['inputdir']
     outdir = config['outputdir']
     symlinkfirst = config['fast5_always_symlink']
-    labelmap = config['output_names']
+    output_layout = config['output_layout']
     blacklist_hardlinks = set()
 
     for entry in results:
@@ -79,7 +84,8 @@ def link_fast5_files(config, results):
             continue
 
         original_fast5 = os.path.join(indir, entry['filename'])
-        link_path = os.path.join(outdir, 'fast5', labelmap[entry['label']],
+        link_path = os.path.join(outdir, 'fast5',
+                                 output_layout[entry['label'], entry.get('barcode')],
                                  entry['filename'])
 
         original_dir = os.path.dirname(original_fast5)
@@ -122,13 +128,14 @@ class SequencingSummaryWriter:
     SUMMARY_OUTPUT_FIELDS = [
         'filename', 'read_id', 'run_id', 'channel', 'start_time',
         'duration', 'num_events', 'sequence_length', 'mean_qscore',
-        'sample_id', 'status', 'label',
+        'sample_id', 'status', 'label', 'barcode',
     ]
 
-    def __init__(self, outputdir, labelmapping):
-        self.file = open(os.path.join(outputdir, 'sequencing_summary.txt'), 'w')
+    def __init__(self, output_dir, label_mapping, barcode_mapping):
+        self.file = open(os.path.join(output_dir, 'sequencing_summary.txt'), 'w')
         self.lock = Lock()
-        self.labelmapping = labelmapping
+        self.label_mapping = label_mapping
+        self.barcode_mapping = barcode_mapping
         print(*self.SUMMARY_OUTPUT_FIELDS, sep='\t', file=self.file)
 
     def close(self):
@@ -138,24 +145,26 @@ class SequencingSummaryWriter:
         with self.lock:
             for entry in results:
                 if 'label' in entry:
-                    print(*[self.labelmapping.get(entry[f], entry[f])
-                            if f == 'label' else entry[f]
-                            for f in self.SUMMARY_OUTPUT_FIELDS],
+                    output_entry = entry.copy()
+                    output_entry['label'] = self.label_mapping[entry['label']]
+                    output_entry['barcode'] = self.barcode_mapping[entry.get('barcode')]
+                    print(*[output_entry[f] for f in self.SUMMARY_OUTPUT_FIELDS],
                           file=self.file, sep='\t')
 
 
 class NanopolishReadDBWriter:
 
-    def __init__(self, outputdir, labelmapping):
-        self.labelmapping = labelmapping
-        self.outputdir = os.path.join(outputdir, 'nanopolish')
+    def __init__(self, output_dir, output_layout):
+        self.output_layout = output_layout
+        self.output_dir = os.path.join(output_dir, 'nanopolish')
         self.seqfiles, self.dbfiles = self.open_streams()
         self.lock = Lock()
 
     def open_streams(self):
         seqfiles, dbfiles = {}, {}
-        for groupid, name in self.labelmapping.items():
-            filepath = os.path.join(self.outputdir, name + '.fasta')
+        for groupid, name in self.output_layout.items():
+            filepath = os.path.join(self.output_dir, name + '.fasta')
+            ensure_dir_exists(filepath)
             seqfiles[groupid] = open(filepath, 'w')
             dbfiles[groupid] = open(filepath + '.index.readdb', 'w')
         return seqfiles, dbfiles
@@ -170,8 +179,8 @@ class NanopolishReadDBWriter:
             del self.dbfiles[groupid]
 
         # Create bgzipped-fasta and indices
-        for groupid, name in self.labelmapping.items():
-            inputfile = os.path.join(self.outputdir, name + '.fasta')
+        for groupid, name in self.output_layout.items():
+            inputfile = os.path.join(self.output_dir, name + '.fasta')
             if os.path.getsize(inputfile) > 0:
                 bgzippedfile = inputfile + '.index'
                 copyfileobj(open(inputfile, 'rb'), BGZFile(bgzippedfile, 'w'))
@@ -181,29 +190,27 @@ class NanopolishReadDBWriter:
         with self.lock:
             for entry in procresult:
                 if entry.get('sequence') is not None:
-                    formatted = '>{}\n{}\n'.format(entry['read_id'], entry['sequence'][0])
-                    self.seqfiles[entry['label']].write(formatted)
+                    mappingkey = entry['label'], entry.get('barcode')
 
-                    fast5_relpath = os.path.join('..', 'fast5', self.labelmapping[entry['label']],
+                    formatted = '>{}\n{}\n'.format(entry['read_id'], entry['sequence'][0])
+                    self.seqfiles[mappingkey].write(formatted)
+
+                    fast5_relpath = os.path.join('fast5', self.output_layout[mappingkey],
                                                  entry['filename'])
                     formatted = '{}\t{}\n'.format(entry['read_id'], fast5_relpath)
-                    self.dbfiles[entry['label']].write(formatted)
+                    self.dbfiles[mappingkey].write(formatted)
 
 
 class FinalSummaryTracker:
 
     REPORTING_ORDER = ['pass', 'artifact', 'fail', 'file_error']
     FRIENDLY_LABELS = {
-        0: 'Barcoded sample 1 (BC1)',
-        1: 'Barcoded sample 2 (BC2)',
-        2: 'Barcoded sample 3 (BC3)',
-        3: 'Barcoded sample 4 (BC4)',
         'pass': 'Successfully processed',
         'fail': 'Processing failed',
         'artifact': 'Possibly artifact',
         'file_error': 'Failed to open',
     }
-    PASS_LABEL_WITH_BARCODES = 'Barcode undetermined'
+    BARCODE_FRIENDLY_NAME = 'Barcoded sample {num} (BC{num})'
     FRIENDLY_STATUS = {
         'fail': {
             'adapter_not_detected': "3' Adapter could not be located",
@@ -219,21 +226,23 @@ class FinalSummaryTracker:
         },
     }
 
-    def __init__(self, labelmapping):
-        self.labelmapping = labelmapping
+    LABEL_FORMAT = '{:49s} '
+    LABEL_BULLET = ' - '
+    MINIMUM_COLUMN_WIDTH = 3
+
+    def __init__(self, label_names, barcode_names):
+        self.label_names = label_names
+        self.barcode_names = barcode_names
         self.counts = defaultdict(int)
-
-        barcodenums = [k for k in self.labelmapping.keys() if not isinstance(k, str)]
-        self.reporting_order = (
-            sorted(barcodenums) + self.REPORTING_ORDER
-            if barcodenums else self.REPORTING_ORDER)
-
-        if barcodenums:
-            self.FRIENDLY_LABELS['pass'] = self.PASS_LABEL_WITH_BARCODES
+        self.label_reporting_order = self.REPORTING_ORDER
+        self.barcode_reporting_order = sorted([
+            n for n in barcode_names.keys() if n is not None]) + [None]
 
     def feed_results(self, results):
         for entry in results:
-            self.counts[entry.get('label', 'file_error'), entry['status']] += 1
+            self.counts[entry.get('label', 'file_error'),
+                        entry.get('barcode', None),
+                        entry['status']] += 1
 
     def print_results(self, file):
         if hasattr(file, 'write'):
@@ -242,16 +251,48 @@ class FinalSummaryTracker:
             logger = logging.getLogger('poreplex')
             _ = lambda *args: logger.error(' '.join(map(str, args)))
 
-        _("== Result Summary ==")
-        for label in self.reporting_order:
-            matching_subcounts = {s: cnt for (l, s), cnt in self.counts.items() if l == label}
-            subtotal = sum(matching_subcounts.values())
+        _("==== Result Summary ====")
+        longest_count_length = len(format(max(self.counts.values()), ',d'))
+        column_width = max(self.MINIMUM_COLUMN_WIDTH, longest_count_length)
+        column_title_format = '{{:{}s}} '.format(column_width)
+        column_numeric_format = '{{:{},d}} '.format(column_width)
 
-            friendlylabel = self.FRIENDLY_LABELS[label]
-            _(" * {}:{}".format(friendlylabel, '\t' if len(friendlylabel) < 20 else ''), subtotal)
-            if label in self.FRIENDLY_STATUS:
-                for status, cnt in matching_subcounts.items():
-                    _("    - {}:".format(self.FRIENDLY_STATUS[label][status]), cnt)
+        # Show the header
+        label_fields = [self.LABEL_FORMAT.format('')] + [
+            column_title_format.format(self.barcode_names[bc])
+            for bc in self.barcode_reporting_order
+        ]
+        _(''.join(label_fields))
+
+        # Show the table content
+        tbl = pd.DataFrame([(k[0], -1 if k[1] is None else k[1], k[2], v)
+                            for k, v in self.counts.items()],
+                           columns=['label', 'barcode', 'status', 'count'])
+        tbl['label_key'] = tbl['label'].apply(self.label_reporting_order.index)
+        ordered = (tbl.sort_values(by=['label_key', 'count'], ascending=[True, False])
+                      .groupby(by=['label', 'status'], sort=False))
+        current_label = None
+        for lk, grp in ordered:
+            linelabel = None
+
+            # Handle label changes
+            if current_label is None or current_label != lk[0]:
+                current_label = lk[0]
+                if current_label in self.FRIENDLY_STATUS:
+                    _(self.LABEL_FORMAT.format(self.FRIENDLY_LABELS[current_label]))
+                else:
+                    linelabel = self.FRIENDLY_LABELS[current_label]
+
+            # Set the line title for the rows with detailed status explanations
+            if linelabel is None:
+                linelabel = self.LABEL_BULLET + self.FRIENDLY_STATUS[current_label][lk[1]]
+
+            readcount_by_barcode = grp.set_index('barcode')['count'].to_dict()
+            readcounts = [readcount_by_barcode.get(bc, 0) for bc in self.barcode_reporting_order]
+
+            # Print the read counts
+            _(self.LABEL_FORMAT.format(linelabel) +
+              ''.join(column_numeric_format.format(cnt) for cnt in readcounts))
 
         _('')
 
