@@ -276,6 +276,7 @@ class SignalAnalysis:
             attrlist.append(('signal_shift', sp_shift))
 
         if 'adapter' in segments:
+            attrlist.append(('adapter_begin', segments['adapter'][0] * stride))
             attrlist.append(('adapter_end', (segments['adapter'][1] + 1) * stride))
 
         return attrlist
@@ -416,12 +417,12 @@ class SignalAnalysis:
         return False
 
     def push_barcode_signal(self, signal, segments):
-        adapter_signal = signal[:segments['adapter'][1]+1]
+        adapter_signal = signal[segments['adapter'][0]:segments['adapter'][1]+1]
         if len(adapter_signal) > 0:
             self.analyzer.demuxer.push(self.npread, adapter_signal)
 
     def dump_adapter_signal(self, signal, segments, stride):
-        adapter_signal = signal[:segments['adapter'][1]+1]
+        adapter_signal = signal[segments['adapter'][0]:segments['adapter'][1]+1]
         if len(adapter_signal) > 0:
             read_id = self.npread.read_info.read_id
             try:
@@ -433,8 +434,8 @@ class SignalAnalysis:
                     return
                 raise
 
-            start_pos = 0
-            end_pos = len(adapter_signal) * stride
+            start_pos = segments['adapter'][0] * stride
+            end_pos = (segments['adapter'][1] + 1) * stride
 
             self.analyzer.push_adapter_signal_catalog(read_id, start_pos, end_pos)
 
