@@ -125,71 +125,98 @@ rule prepare_training_data:
 rule subsample_training_inputs:
     input:
         catalog='tables/selected-signal-matches-{run}.txt',
-        fulldata='arrays/full-training-{run}.npy'
+        fulldata='arrays/full-training-{run}.npy',
+        decoydata='arrays/decoy-signals-full-{run}.npy'
     output: 'traindata/signals-{run}-s{size}-t{trim}.hdf5'
     run:
         from sklearn.utils import class_weight
         from sklearn.preprocessing import OneHotEncoder
         import h5py
+        from numpy.lib.format import open_memmap
+        from random import sample
         import numpy as np
         import pandas as pd
 
         subsamplesize = int(wildcards.size)
         trimsize = int(wildcards.trim)
+        testsplit = float(config['train_data_transform']['test_data_split'])
 
-        fullsig = np.load(input.fulldata)[:, -trimsize:, np.newaxis]
+        print('==> Loading labeled barcode signals')
+        fullsig = open_memmap(input.fulldata, 'r')[:, -trimsize:, np.newaxis]
         allreads = pd.read_table(input.catalog)
         indexcounts = allreads['_best_score_idxi'].value_counts().clip(None, subsamplesize)
-        testcounts = (indexcounts *
-                      config['train_data_transform']['test_data_split']).astype(np.int64)
+        testcounts = (indexcounts * testsplit).astype(np.int64)
 
-        input_signals, input_labels, input_indices = [], [], []
+        print('==> Extract signals from labeled barcode signals')
+        input_signals, input_labels, input_readids = [], [], []
         for idx, cnt in indexcounts.sort_index().items():
             readidx = allreads[allreads['_best_score_idxi'] == idx].index.tolist()
             readidx = np.random.permutation(readidx)[:cnt]
             input_signals.append(fullsig[readidx])
-            input_indices.append(readidx)
+
+            readids = allreads.iloc[readidx]['read_id'].astype('S36')
+            input_readids.append(readids)
 
             sublabels = np.array([idx] * cnt, dtype=np.int16)
             testidx = np.random.permutation(list(range(cnt)))[:testcounts.loc[idx]]
             sublabels[testidx] = -(sublabels[testidx] + 1)
             input_labels.append(sublabels)
 
+        print('==> Load decoy signals for non-barcoded DNA region')
+        dummy_readid = b'00000000-0000-0000-0000-000000000000'
+        decoysig = open_memmap(input.decoydata, 'r')
+        decoysubidx = sample(range(decoysig.shape[0]), subsamplesize)
+        decoytestcount = int(len(decoysubidx) * testsplit)
+        decoylabels = np.repeat(np.array([len(indexcounts)], dtype=np.int16), len(decoysubidx))
+        decoylabels[:decoytestcount] = -(decoylabels[:decoytestcount] + 1)
+        decoysig = decoysig[decoysubidx, -trimsize:, np.newaxis]
+        decoyreadids = np.repeat(np.array([dummy_readid]), len(decoysubidx))
+        decoycount = 1
+
+        input_signals.append(decoysig)
+        input_labels.append(decoylabels)
+        input_readids.append(decoyreadids)
+
+        print('==> Merging all data rows')
         input_signals = np.vstack(input_signals)
         input_labels = np.hstack(input_labels)
-        input_indices = np.hstack(input_indices)
+        input_readids = np.hstack(input_readids)
 
+        print('==> Shuffling data rows')
         shuforder = np.random.permutation(list(range(len(input_signals))))
         input_signals = input_signals[shuforder]
         input_labels = input_labels[shuforder]
-        input_indices = input_indices[shuforder]
+        input_readids = input_readids[shuforder]
 
         is_test = input_labels < 0
         train_labels = input_labels[~is_test]
         test_labels = -(input_labels[is_test] + 1)
 
-        ohencoder = OneHotEncoder(sparse=False, n_values=len(indexcounts))
+        print('==> One-hot encoding')
+        ohencoder = OneHotEncoder(sparse=False, n_values=len(indexcounts)+decoycount)
         train_onehot = ohencoder.fit_transform(train_labels[:, np.newaxis]).astype(np.float32)
         test_onehot = ohencoder.fit_transform(test_labels[:, np.newaxis]).astype(np.float32)
 
+        print('==> Calculating weights')
         clsweight_train = class_weight.compute_class_weight('balanced',
-                            list(range(len(indexcounts))), train_labels)
+                            list(range(len(indexcounts) + decoycount)), train_labels)
         clsweight_test = class_weight.compute_class_weight('balanced',
-                            list(range(len(indexcounts))), test_labels)
+                            list(range(len(indexcounts) + decoycount)), test_labels)
 
+        print('==> Writing out the arrays')
         with h5py.File(output[0], 'w') as h5:
             grp = h5.create_group('training')
             grp['signals'] = input_signals[~is_test]
             grp['labels'] = train_labels
             grp['onehot'] = train_onehot
-            grp['readid'] = allreads.iloc[input_indices[~is_test]]['read_id'].astype('S36')
+            grp['readid'] = input_readids[~is_test]
             grp['weights'] = clsweight_train
 
             grp = h5.create_group('testing')
             grp['signals'] = input_signals[is_test]
             grp['labels'] = test_labels
             grp['onehot'] = test_onehot
-            grp['readid'] = allreads.iloc[input_indices[is_test]]['read_id'].astype('S36')
+            grp['readid'] = input_readids[is_test]
             grp['weights'] = clsweight_test
 
 

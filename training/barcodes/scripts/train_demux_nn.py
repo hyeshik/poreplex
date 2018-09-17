@@ -22,7 +22,7 @@
 #
 
 import h5py
-from keras.layers import Dense, Dropout, GRU, LSTM, GaussianNoise, MaxPooling1D
+from keras.layers import Dense, Dropout, LSTM, GaussianNoise, MaxPooling1D, CuDNNLSTM
 from keras.models import Sequential
 from keras.callbacks import Callback, EarlyStopping, CSVLogger, ModelCheckpoint
 from keras.utils.training_utils import multi_gpu_model
@@ -73,47 +73,15 @@ def load_data(datapath, datatype):
         print('  - done.')
         return currentgroup
 
-def build_layers_GRU_2_128(input_shape, num_classes):
+def build_layers_LSTM1(input_shape, num_classes):
     model = Sequential()
 
     model.add(GaussianNoise(1.5, input_shape=input_shape))
 
-    model.add(GRU(128, return_sequences=True))
-    model.add(Dropout(0.1))
+    model.add(CuDNNLSTM(128, return_sequences=True))
+    model.add(Dropout(0.15))
 
-    model.add(GRU(128, return_sequences=False))
-    model.add(Dropout(0.3))
-
-    model.add(Dense(num_classes, activation='softmax'))
-    return model
-
-def build_layers_GRU_2_64(input_shape, num_classes):
-    model = Sequential()
-
-    model.add(GaussianNoise(1.5, input_shape=input_shape))
-
-    model.add(GRU(64, return_sequences=True))
-    model.add(Dropout(0.1))
-
-    model.add(GRU(64, return_sequences=False))
-    model.add(Dropout(0.3))
-
-    model.add(Dense(num_classes, activation='softmax'))
-    return model
-
-def build_layers_GRU_3(input_shape, num_classes):
-    model = Sequential()
-
-    model.add(GaussianNoise(1.5, input_shape=input_shape))
-
-    model.add(GRU(64, return_sequences=True))
-    model.add(MaxPooling1D(pool_size=5, strides=2, padding='same'))
-    model.add(Dropout(0.1))
-
-    model.add(GRU(128, return_sequences=True))
-    model.add(Dropout(0.1))
-
-    model.add(GRU(64, return_sequences=False))
+    model.add(CuDNNLSTM(128, return_sequences=False))
     model.add(Dropout(0.3))
 
     model.add(Dense(num_classes, activation='softmax'))
