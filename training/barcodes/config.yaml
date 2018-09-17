@@ -41,10 +41,10 @@ training_parameters:
   global:
     ngpu: 2
     epochs: 300
-    validation_split: 0.1
+    validation_split: 0.2
     batchsize_train: 1024
-    batchsize_eval: 128
-    batchsize_test: 512
+    batchsize_eval: 1024
+    batchsize_test: 1024
     optimizer: adam
     model_checkpoint_period: 1
     earlystopping_min_delta: 0.001

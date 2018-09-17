@@ -73,16 +73,23 @@ def load_data(datapath, datatype):
         print('  - done.')
         return currentgroup
 
-def build_layers_LSTM1(input_shape, num_classes):
+def build_layers_LSTM1(input_shape, num_classes, cudnn=False):
+    if cudnn:
+        lstm_layer = CuDNNLSTM
+        lstm_options = {}
+    else:
+        lstm_layer = LSTM
+        lstm_options = {'recurrent_activation': 'sigmoid'}
+
     model = Sequential()
 
     model.add(GaussianNoise(1.5, input_shape=input_shape))
 
-    model.add(CuDNNLSTM(128, return_sequences=True))
-    model.add(Dropout(0.15))
+    model.add(lstm_layer(128, return_sequences=True, **lstm_options))
+    model.add(Dropout(0.1))
 
-    model.add(CuDNNLSTM(128, return_sequences=False))
-    model.add(Dropout(0.3))
+    model.add(lstm_layer(128, return_sequences=False, **lstm_options))
+    model.add(Dropout(0.2))
 
     model.add(Dense(num_classes, activation='softmax'))
     return model
@@ -90,7 +97,7 @@ def build_layers_LSTM1(input_shape, num_classes):
 def create_model(params, layerdef, input_shape, num_classes):
     print('Creating model...')
     with tf.device('/cpu:0'):
-        model = globals()['build_layers_' + layerdef](input_shape, num_classes)
+        model = globals()['build_layers_' + layerdef](input_shape, num_classes, cudnn=True)
 
     print('Compiling...')
 
@@ -109,6 +116,19 @@ def create_model(params, layerdef, input_shape, num_classes):
     print('  - done.')
 
     return model, pmodel
+
+def convert_model_to_noncudnn(layerdef, input_file, output_file, input_shape, num_outputs,
+                              params):
+    with tf.device('/cpu:0'):
+        build_layers = globals()['build_layers_' + layerdef]
+        cpu_model = build_layers(input_shape, num_outputs, cudnn=False)
+
+        cpu_model.compile(loss='categorical_crossentropy',
+                          optimizer=params['optimizer'], metrics=['accuracy'])
+
+    cpu_model.load_weights(input_file)
+    cpu_model.save(output_file)
+    return cpu_model
 
 def train_model(model, pmodel, global_params, training_data, output_dir):
     callbacks = [
@@ -135,16 +155,16 @@ def train_model(model, pmodel, global_params, training_data, output_dir):
                       verbose=1, callbacks=callbacks,
                       class_weight=training_data['weights'])
 
-    model.save(output_dir + '/final-model.hdf5')
+    model.save(output_dir + '/final-cudamodel.hdf5')
 
 
 def evaluate_model(pmodel, global_params, testdata, output_dir):
     print('Evaluating the model performance...')
-    score, acc = pmodel.evaluate(testdata['signals'], testdata['onehot'],
+    loss, acc = pmodel.evaluate(testdata['signals'], testdata['onehot'],
                                  batch_size=global_params['batchsize_eval'])
-    print(score, acc, file=open(output_dir + '/evaluation.txt', 'w'), sep='\t')
+    print(loss, acc, file=open(output_dir + '/evaluation.txt', 'w'), sep='\t')
     print('== Evaluation result ==')
-    print(' * Test score:', score)
+    print(' * Test loss:', loss)
     print(' * Test accuracy:', acc)
 
 
@@ -189,12 +209,25 @@ def main(global_params, layer_def, dataset_file, output_dir):
 
     train_model(model, pmodel, global_params, training_data, output_dir)
 
+    print('Adopting the weights to a new model for CPU')
+    cpu_model = \
+        convert_model_to_noncudnn(layer_def,
+                                  os.path.join(output_dir, 'final-cudamodel.hdf5'),
+                                  os.path.join(output_dir, 'final-model.hdf5'),
+                                  training_data['signals'].shape[1:],
+                                  training_data['weights'].shape[0],
+                                  global_params)
+
     del training_data
 
-
     testdata = load_data(dataset_file, 'testing')
+
+    print('Evaluation of the CUDA model')
     predict_test_classifications(pmodel, global_params, testdata, output_dir)
     evaluate_model(pmodel, global_params, testdata, output_dir)
+
+    print('Evaluation of the CPU model')
+    evaluate_model(cpu_model, global_params, testdata, output_dir)
 
 
 if __name__ == '__main__':

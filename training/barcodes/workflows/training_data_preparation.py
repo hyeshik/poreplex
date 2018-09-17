@@ -157,7 +157,7 @@ rule subsample_training_inputs:
             readids = allreads.iloc[readidx]['read_id'].astype('S36')
             input_readids.append(readids)
 
-            sublabels = np.array([idx] * cnt, dtype=np.int16)
+            sublabels = np.array([idx + 1] * cnt, dtype=np.int16)
             testidx = np.random.permutation(list(range(cnt)))[:testcounts.loc[idx]]
             sublabels[testidx] = -(sublabels[testidx] + 1)
             input_labels.append(sublabels)
@@ -167,7 +167,7 @@ rule subsample_training_inputs:
         decoysig = open_memmap(input.decoydata, 'r')
         decoysubidx = sample(range(decoysig.shape[0]), subsamplesize)
         decoytestcount = int(len(decoysubidx) * testsplit)
-        decoylabels = np.repeat(np.array([len(indexcounts)], dtype=np.int16), len(decoysubidx))
+        decoylabels = np.zeros(len(decoysubidx), dtype=np.int16)
         decoylabels[:decoytestcount] = -(decoylabels[:decoytestcount] + 1)
         decoysig = decoysig[decoysubidx, -trimsize:, np.newaxis]
         decoyreadids = np.repeat(np.array([dummy_readid]), len(decoysubidx))
