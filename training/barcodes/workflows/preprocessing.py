@@ -1,13 +1,15 @@
 rule preprocess:
-    output: '{name}/.poreplex_preprocessing_done'
+    output:
+        bookmark_file='{name}/.poreplex_preprocessing_done',
+        adapter_inventory='{name}/adapter-dumps/inventory.h5'
     threads: 40
     run:
         input_dir = config['data'][wildcards.name]
-        output_dir = os.path.dirname(output[0])
+        output_dir = os.path.dirname(output.bookmark_file)
         shell('poreplex --input "{input_dir}" --output "{output_dir}" --parallel {threads} \
                 --dump-adapter-signals --dump-basecalled-events --trim-adapter \
                 --fast5 --symlink-fast5 --basecall')
-        shell('touch {output}')
+        shell('touch {output.bookmark_file}')
 
 
 rule generate_fasta:

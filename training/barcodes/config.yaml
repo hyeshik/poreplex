@@ -9,6 +9,20 @@ reference_transcriptomes:
   - [cel, refs/cel-all.fa.gz]
 reference_transcriptome_filtering:
   blacklist_alignment_match_length: 100
+decoy_signal_generation:
+  mean_signal_stride: 15
+  fragment_oversampling_rate: 1
+  fragment_random_source_size: 10000
+  fragment_break_density: 0.0166666 # 1/60
+  fragment_length_min: 30
+  fragment_length_max: 70
+  stitching_noise_stdev: 2
+  length_histogram_min: 90
+  length_histogram_max: 3000
+  length_histogram_bins: 97
+  target_population_per_round: 10000
+  num_rounds: 100
+  output_length: 1000
 train_data_selection:
   min_alignment_score: 200
   max_2nd_alignment_score: 100

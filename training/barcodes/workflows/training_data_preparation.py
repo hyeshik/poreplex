@@ -105,6 +105,11 @@ rule select_reads:
 
         selected.to_csv(output.selected_signal_matches, sep='\t', index=False)
 
+rule prepare_decoy_signals:
+    input: '{run}/adapter-dumps/inventory.h5'
+    output: 'arrays/decoy-signals-full-{run}.npy'
+    shell: 'scripts/generate_random_adapter_signals.py {input} {output}'
+
 rule prepare_training_data:
     input:
         catalog='tables/selected-signal-matches-{run}.txt',
