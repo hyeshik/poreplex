@@ -32,5 +32,5 @@ with h5py.File('trained-model/final-model.hdf5') as h5:
         'length': 30000,
         'min_length': 9000,
     }).encode('ascii')
-    attrs['model_version'] = b'poreplex-scaler r2 (2018-09-13)'
+    attrs['model_version'] = b'poreplex-scaler r3 (2018-09-17)'
 

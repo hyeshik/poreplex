@@ -46,12 +46,12 @@ def build_layers(input_shape, output_variables, cudnn=False):
 
     model = Sequential()
 
-    model.add(lstm_layer(64, return_sequences=True, input_shape=input_shape,
+    model.add(lstm_layer(48, return_sequences=True, input_shape=input_shape,
                          **lstm_options))
-    model.add(Dropout(0.15))
+    model.add(Dropout(0.1))
 
-    model.add(lstm_layer(64, return_sequences=False, **lstm_options))
-    model.add(Dropout(0.3))
+    model.add(lstm_layer(48, return_sequences=False, **lstm_options))
+    model.add(Dropout(0.2))
 
     model.add(Dense(output_variables, activation='linear'))
     return model
@@ -178,12 +178,12 @@ if __name__ == '__main__':
     global_params = {
         'ngpu': 2,
         'optimizer': 'adam',
-        'earlystopping_min_delta': 0.001,
-        'earlystopping_patience': 20,
-        'batchsize_train': 2048,
+        'earlystopping_min_delta': 0.0005,
+        'earlystopping_patience': 30,
+        'batchsize_train': 3072,
         'batchsize_test': 2048,
-        'epochs': 200,
-        'validation_split': 0.3,
+        'epochs': 300,
+        'validation_split': 0.25,
         'transform-y': 'dataarrays/scaling-transform.txt',
         'training-x': 'dataarrays/signals-training.npy',
         'training-y': 'dataarrays/scaling-training.npy',
