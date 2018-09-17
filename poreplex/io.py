@@ -217,7 +217,7 @@ class FinalSummaryTracker:
             'basecall_table_incomplete': 'Basecall table does not match',
             'adapter_not_detected': "3' Adapter could not be located",
             'not_basecalled': 'No albacore basecall data found',
-            'scaling_qc_fail': 'Signal scaling failed',
+            'scaling_qc_fail': 'Signal scaling QC failed',
             'disappeared': 'File is moved to other location',
             'unknown_error': 'File could not be opened due to unknown error',
         },
