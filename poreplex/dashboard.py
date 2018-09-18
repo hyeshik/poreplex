@@ -39,11 +39,9 @@ GROUP_NAME_LABELS = [
     (1, 'Barcode 2'),
     (2, 'Barcode 3'),
     (3, 'Barcode 4'),
-    ('pass', 'Undetermined'),
-    ('artifact', 'Artifact'),
-    ('fail', 'Failed')
+    (None, 'Undetermined'),
 ]
-GROUP_NAME_PASS_UNBARCODED = 'Passed'
+GROUP_NAME_UNBARCODED = 'All Reads'
 
 
 class SelectGroupButton(urwid.Button):
@@ -213,9 +211,7 @@ class DashboardView:
         ]
 
         if not any(isinstance(groupid, int) for groupid, name in readgroups): # w/o barcoding
-            readgroups = [
-                (groupid, name if groupid != 'pass' else GROUP_NAME_PASS_UNBARCODED)
-                for groupid, name in readgroups]
+            readgroups = [(None, GROUP_NAME_UNBARCODED)]
 
         return readgroups
 

@@ -160,17 +160,18 @@ class AlignmentWriter:
         unmapped_counts = defaultdict(int)
 
         for result in results:
-            streamid = result.get('label', 'fail'), result.get('barcode')
+            barcode = result.get('barcode')
+            streamid = result.get('label', 'fail'), barcode
 
             if result.get('sequence') is None or 'read_id' not in result:
-                failed_counts[label] += 1
+                failed_counts[barcode] += 1
             else:
                 mapped = self.map_and_write(streamid, result['read_id'], *result['sequence'])
 
                 if mapped == '*':
-                    unmapped_counts[streamid] += 1
+                    unmapped_counts[barcode] += 1
                 else:
-                    mapped_seqs[streamid].append(mapped)
+                    mapped_seqs[barcode].append(mapped)
 
         return {'mapped': mapped_seqs, 'failed': failed_counts, 'unmapped': unmapped_counts}
 

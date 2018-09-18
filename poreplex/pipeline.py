@@ -450,9 +450,8 @@ class ProcessingSession:
             aliases = dashboard.load_aliases(self.config['contig_aliases'])
         else:
             aliases = {}
-        raise NotImplemented # XXX: the next line needs to be fixed
-        view = dashboard.DashboardView(self, self.config['label_output_dirs'],
-                                       self.config['barcode_output_dirs'],
+
+        view = dashboard.DashboardView(self, self.config['barcode_names'],
                                        'progress', 'mapped_rate',
                                        self.config['analysis_start_delay'],
                                        aliases)
