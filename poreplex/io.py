@@ -252,10 +252,10 @@ class FinalSummaryTracker:
             _ = lambda *args: logger.error(' '.join(map(str, args)))
 
         _("==== Result Summary ====")
-        longest_count_length = len(format(max(self.counts.values()), ',d'))
+        longest_count_length = len(format(max(self.counts.values()), 'd'))
         column_width = max(self.MINIMUM_COLUMN_WIDTH, longest_count_length)
         column_title_format = '{{:{}s}} '.format(column_width)
-        column_numeric_format = '{{:{},d}} '.format(column_width)
+        column_numeric_format = '{{:{}d}} '.format(column_width)
 
         # Show the header
         if len(self.barcode_names) > 1:
