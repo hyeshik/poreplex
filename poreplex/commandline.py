@@ -287,6 +287,7 @@ def main(args):
     config['fast5_always_symlink'] = args.symlink_fast5
     config['nanopolish_output'] = args.nanopolish
     config['trim_adapter'] = args.trim_adapter
+    config['minimum_sequence_length'] = args.minimum_length
     config['minimap2_index'] = args.align if args.align else None
     config['label_names'], config['barcode_names'], config['output_layout'] = \
         setup_output_name_mapping(config)
@@ -340,6 +341,8 @@ def __main__():
     group = parser.add_argument_group('Basic Processing Options')
     group.add_argument('--trim-adapter', default=False, action='store_true',
                        help="trim 3' adapter sequences from FASTQ outputs")
+    group.add_argument('--minimum-length', default=10, type=int, metavar='LEN',
+                       help="discard reads shorter than LEN (default: 10)")
     group.add_argument('--keep-unsplit', default=False, action='store_true',
                        help="don't remove unsplit reads fused of two or more RNAs in output")
 

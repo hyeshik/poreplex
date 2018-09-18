@@ -260,6 +260,12 @@ class SignalAnalysis:
                 if isunsplit_read:
                     raise SignalAnalysisError('unsplit_read')
 
+            # Discard short sequences
+            if self.npread.sequence is not None:
+                readlength = len(self.npread.sequence[0]) - self.npread.sequence[2]
+                if readlength < self.config['minimum_sequence_length']:
+                    raise SignalAnalysisError('sequence_too_short')
+
         except SignalAnalysisError as exc:
             outname = 'artifact' if exc.args[0] in ('unsplit_read',) else 'fail'
             self.npread.set_status(exc.args[0], stop=True)

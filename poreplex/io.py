@@ -213,6 +213,7 @@ class FinalSummaryTracker:
     FRIENDLY_STATUS = {
         'fail': {
             'scaler_signal_too_short': 'Signal is too short',
+            'sequence_too_short': 'Sequence is too short',
             'irregular_fast5': 'Invalid FAST5 format',
             'basecall_table_incomplete': 'Basecall table does not match',
             'adapter_not_detected': "3' Adapter could not be located",
