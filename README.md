@@ -26,13 +26,10 @@ for RNA Biology and yields the processed data in the ready-to-use forms.
 
 ## Installation
 *Poreplex* requires Python 3.5+ and [pip](http://pypi.python.org/pypi/pip) to install.
-This *pip* command installs *poreplex* with its essential dependencies. Currently,
-you need to install *pomegranate* manually before installing *poreplex* due to a
-memory leakage issue in the released versions of *pomegranate*. You may use the
+This *pip* command installs *poreplex* with its essential dependencies. You may use the
 following command.
 
 ```bash
-pip install cython && pip install git+https://github.com/jmschrei/pomegranate.git
 pip install poreplex
 ```
 
