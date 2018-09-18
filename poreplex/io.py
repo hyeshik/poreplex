@@ -222,7 +222,7 @@ class FinalSummaryTracker:
             'unknown_error': 'File could not be opened due to unknown error',
         },
         'artifact': {
-            'unsplit_read': 'Two or more molecules found in a single read',
+            'unsplit_read': 'Two or more molecules found within a read',
         },
     }
 

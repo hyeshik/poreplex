@@ -62,10 +62,11 @@ class BarcodeDemultiplexer:
             signals = np.array(self.signals)[:, :, np.newaxis]
             predweights = self.model.predict(signals,
                 batch_size=self.config['maximum_batch_size'], verbose=0)
-            predlabels = np.argmax(predweights, axis=1)
+            predlabels = np.argmax(predweights, axis=1) - self.config['number_of_decoy_labels']
             predlabel_probs = np.amax(predweights, axis=1)
 
-            predvalid = predlabel_probs >= self.config['pred_weight_cutoff']
+            predvalid = ((predlabels >= 0) &
+                         (predlabel_probs >= self.config['pred_weight_cutoff']))
             for npread, is_valid, bcid in zip(self.signal_assoc_read, predvalid, predlabels):
                 if is_valid:
                     npread.set_barcode(int(bcid))
