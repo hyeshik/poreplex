@@ -16,3 +16,7 @@
 - Fixed an error that stops overall process by an invalid FAST5 file.
 - Fixed a problem that separate lines of FASTA, FASTQ or
   `sequencing-summary.txt` are mixed up in the output file sometimes.
+- Updated the neural network model for barcode demultiplexing for
+  even less false positives using randomly stitched signal fragments
+  as a background.
+
