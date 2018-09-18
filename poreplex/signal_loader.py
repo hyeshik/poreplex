@@ -255,7 +255,12 @@ class NanoporeRead:
         if self.fast5 is None:
             raise Exception('Fast5 must be open for getting events.')
 
-        with Basecall1DTools(self.fast5) as bcall:
+        try:
+            bcall = Basecall1DTools(self.fast5)
+        except KeyError:
+            raise SignalAnalysisError('not_basecalled')
+
+        try:
             events = bcall.get_event_data('template')
             if events is None:
                 raise SignalAnalysisError('not_basecalled')
@@ -267,6 +272,8 @@ class NanoporeRead:
             self.sequence = bcall.get_called_sequence('template')[1:] + (0,)
 
             return pd.DataFrame(events)
+        finally:
+            bcall.close()
 
     def call_albacore(self, albacore):
         rawdata = self.load_signal(pool=False)
