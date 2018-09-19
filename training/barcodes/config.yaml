@@ -40,14 +40,15 @@ train_data_transform:
 training_parameters:
   global:
     ngpu: 2
-    epochs: 300
+    epochs: 1500
     validation_split: 0.2
-    batchsize_train: 1024
-    batchsize_eval: 1024
-    batchsize_test: 1024
+    batchsize_train: 2048
+    batchsize_eval: 2048
+    batchsize_test: 2048
     optimizer: adam
     model_checkpoint_period: 1
     earlystopping_min_delta: 0.001
     earlystopping_patience: 30
   layer_designs:
     - LSTM1
+    - GRU1

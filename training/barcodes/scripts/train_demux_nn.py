@@ -22,9 +22,11 @@
 #
 
 import h5py
-from keras.layers import Dense, Dropout, LSTM, GaussianNoise, MaxPooling1D, CuDNNLSTM
+from keras.layers import (
+    Dense, Dropout, LSTM, GaussianNoise, CuDNNLSTM, Bidirectional)
+from keras.layers import TimeDistributed
 from keras.models import Sequential
-from keras.callbacks import Callback, EarlyStopping, CSVLogger, ModelCheckpoint
+from keras.callbacks import Callback, EarlyStopping, CSVLogger, ModelCheckpoint, TensorBoard
 from keras.utils.training_utils import multi_gpu_model
 import tensorflow as tf
 import shutil
@@ -85,13 +87,38 @@ def build_layers_LSTM1(input_shape, num_classes, cudnn=False):
 
     model.add(GaussianNoise(1.5, input_shape=input_shape))
 
-    model.add(lstm_layer(128, return_sequences=True, **lstm_options))
-    model.add(Dropout(0.1))
-
-    model.add(lstm_layer(128, return_sequences=False, **lstm_options))
+    model.add(Bidirectional(lstm_layer(48, return_sequences=True, **lstm_options)))
     model.add(Dropout(0.2))
 
+    model.add(lstm_layer(64, return_sequences=False, **lstm_options))
+    model.add(Dropout(0.3))
+
     model.add(Dense(num_classes, activation='softmax'))
+
+    return model
+
+def build_layers_GRU1(input_shape, num_classes, cudnn=False):
+    from keras.layers import CuDNNGRU, GRU
+    if cudnn:
+        gru_layer = CuDNNGRU
+        lstm_options = {}
+    else:
+        gru_layer = GRU
+        lstm_options = {'recurrent_activation': 'sigmoid', 'reset_after': True,
+                        'implementation': 2}
+
+    model = Sequential()
+
+    model.add(GaussianNoise(1.5, input_shape=input_shape))
+
+    model.add(Bidirectional(gru_layer(48, return_sequences=True, **lstm_options)))
+    model.add(Dropout(0.2))
+
+    model.add(gru_layer(64, return_sequences=False, **lstm_options))
+    model.add(Dropout(0.3))
+
+    model.add(Dense(num_classes, activation='softmax'))
+
     return model
 
 def create_model(params, layerdef, input_shape, num_classes):
@@ -144,7 +171,8 @@ def train_model(model, pmodel, global_params, training_data, output_dir):
         EarlyStopping(monitor='val_loss',
             min_delta=global_params['earlystopping_min_delta'],
             patience=global_params['earlystopping_patience'],
-            verbose=1)
+            verbose=1),
+        TensorBoard(log_dir=output_dir + '/tensorboard')
     ]
 
     hist = pmodel.fit(training_data['signals'],
@@ -197,13 +225,9 @@ def main(global_params, layer_def, dataset_file, output_dir):
 
     if os.path.isdir(output_dir):
         if any((not f.startswith('.')) for f in os.listdir(output_dir)):
-            answer = input('Output directory {} exists. Clear it? (y/N) '.format(output_dir))
-            if answer.strip().lower().startswith('y'):
-                print('Clearing {}...'.format(output_dir))
-                shutil.rmtree(output_dir)
-                os.mkdir(output_dir)
-            else:
-                return
+            print('Clearing {}...'.format(output_dir))
+            shutil.rmtree(output_dir)
+            os.mkdir(output_dir)
     else:
         os.makedirs(output_dir)
 
