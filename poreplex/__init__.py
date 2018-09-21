@@ -37,3 +37,11 @@ OUTPUT_NAME_UNDETERMINED = 'undetermined'
 OUTPUT_NAME_BARCODES = 'BC{n}'
 OUTPUT_NAME_BARCODING_OFF = '-'
 
+
+# libhdf5 can't create hdf5 files on NFS in some environment.
+# Poreplex manages to open hdf5 files in write mode from a single context
+# only. Thus, disable locking to make less people disturbed by mismatches
+# between the components.
+import os
+os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
+del os
