@@ -243,6 +243,10 @@ class SignalAnalysis:
             if self.config['barcoding']:
                 self.push_barcode_signal(signal, segments)
 
+            # Measure poly(A) tail signals
+            if self.config['measure_polya']:
+                self.analyzer.polyaanalyzer(self.npread, segments, stride)
+
             # Load basecalled events for further jobs working also in base-space
             events = self.load_events()
             if self.config['dump_basecalls']:
@@ -282,8 +286,14 @@ class SignalAnalysis:
             attrlist.append(('signal_shift', sp_shift))
 
         if 'adapter' in segments:
-            attrlist.append(('adapter_begin', segments['adapter'][0] * stride))
-            attrlist.append(('adapter_end', (segments['adapter'][1] + 1) * stride))
+            attrlist.append(('adapter_begin', np.uint32(segments['adapter'][0] * stride)))
+            attrlist.append(('adapter_end', np.uint32((segments['adapter'][1] + 1) * stride)))
+
+        if self.npread.polya is not None:
+            polya = self.npread.polya
+            attrlist.append(('polya_begin', np.uint32(polya['begin'])))
+            attrlist.append(('polya_end', np.uint32(polya['end'])))
+            attrlist.append(('spikes', repr(polya['spikes']).encode()))
 
         return attrlist
 

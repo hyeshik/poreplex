@@ -38,7 +38,7 @@ class WorkerPersistenceStorage:
     MODCACHE_SPACE = sys.modules
     VARIABLES = [
         'segmodel', 'unsplitmodel', 'kmermodel', 'kmersize', 'loader',
-        'demuxer', 'albacore']
+        'demuxer', 'albacore', 'polyaanalyzer']
 
     def __init__(self, config):
         self.config = config
@@ -68,6 +68,10 @@ class WorkerPersistenceStorage:
         if config['barcoding']:
             from .barcoding import BarcodeDemultiplexer
             storage['demuxer'] = BarcodeDemultiplexer(config['demultiplexing'])
+
+        if config['measure_polya']:
+            from .polya import PolyASignalAnalyzer
+            storage['polyaanalyzer'] = PolyASignalAnalyzer(config['polya_dwell'])
 
         if config['albacore_onthefly']:
             from .basecall_albacore import AlbacoreBroker

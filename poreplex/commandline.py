@@ -277,6 +277,7 @@ def main(args):
     config['tmpdir'] = args.tmpdir if args.tmpdir else os.path.join(args.output, 'tmp')
     config['cleanup_tmpdir'] = False # will be changed during creation of output dirs
     config['barcoding'] = args.barcoding
+    config['measure_polya'] = args.polya
     config['filter_unsplit_reads'] = not args.keep_unsplit
     config['batch_chunk_size'] = args.batch_chunk
     config['albacore_onthefly'] = args.basecall
@@ -349,6 +350,8 @@ def __main__():
     group = parser.add_argument_group('Optional Analyses')
     group.add_argument('--barcoding', default=False, action='store_true',
                        help='sort barcoded reads into separate outputs')
+    group.add_argument('--polya', default=False, action='store_true',
+                       help='output poly(A) tail length measurements')
     group.add_argument('--basecall', default=False, action='store_true',
                        help='call the ONT albacore for basecalling on-the-fly')
     group.add_argument('--align', default=None, type=str, metavar='INDEXFILE',

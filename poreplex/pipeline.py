@@ -115,7 +115,7 @@ class ProcessingSession:
             self.npreaddb_writer = NanopolishReadDBWriter(
                 self.config['outputdir'], self.config['output_layout'])
         self.seqsummary_writer = SequencingSummaryWriter(
-            self.config['outputdir'], self.config['label_names'],
+            self.config, self.config['outputdir'], self.config['label_names'],
             self.config['barcode_names'])
         self.finalsummary_tracker = FinalSummaryTracker(
             self.config['label_names'], self.config['barcode_names'])

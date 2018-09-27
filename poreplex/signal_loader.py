@@ -114,7 +114,7 @@ class NanoporeRead:
 
     fast5 = full_raw_signal = read_info = error_message = None
     sequence_length = mean_qscore = 0
-    sequence = scaling_params = label = barcode = None
+    sequence = scaling_params = label = barcode = polya = None
 
     def __init__(self, filename, srcdir):
         self.fullpath = os.path.join(srcdir, filename)
@@ -147,6 +147,9 @@ class NanoporeRead:
         if self.sequence is None:
             raise Exception('Sequence is not set.')
         self.sequence = self.sequence[:2] + (newlength,)
+
+    def set_polya_tail(self, polya_info):
+        self.polya = polya_info
 
     def is_stopped(self):
         return self.stopped
@@ -184,6 +187,9 @@ class NanoporeRead:
 
         if self.barcode is not None:
             rep['barcode'] = self.barcode
+
+        if self.polya is not None:
+            rep['polya'] = self.polya
 
         return rep
 

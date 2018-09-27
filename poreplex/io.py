@@ -128,15 +128,29 @@ class SequencingSummaryWriter:
     SUMMARY_OUTPUT_FIELDS = [
         'filename', 'read_id', 'run_id', 'channel', 'start_time',
         'duration', 'num_events', 'sequence_length', 'mean_qscore',
-        'sample_id', 'status', 'label', 'barcode',
+        'sample_id', 'status', 'label',
     ]
 
-    def __init__(self, output_dir, label_mapping, barcode_mapping):
+    def __init__(self, config, output_dir, label_mapping, barcode_mapping):
         self.file = open(os.path.join(output_dir, 'sequencing_summary.txt'), 'w')
         self.lock = Lock()
         self.label_mapping = label_mapping
-        self.barcode_mapping = barcode_mapping
-        print(*self.SUMMARY_OUTPUT_FIELDS, sep='\t', file=self.file)
+
+        self.output_fields = self.SUMMARY_OUTPUT_FIELDS[:]
+
+        if config['barcoding']:
+            self.barcode_mapping = barcode_mapping
+            self.output_fields.append('barcode')
+        else:
+            self.barcode_mapping = None
+
+        if config['measure_polya']:
+            self.polya_enabled = True
+            self.output_fields.append('polya_dwell')
+        else:
+            self.polya_enabled = False
+
+        print(*self.output_fields, sep='\t', file=self.file)
 
     def close(self):
         self.file.close()
@@ -147,8 +161,14 @@ class SequencingSummaryWriter:
                 if 'label' in entry:
                     output_entry = entry.copy()
                     output_entry['label'] = self.label_mapping[entry['label']]
-                    output_entry['barcode'] = self.barcode_mapping[entry.get('barcode')]
-                    print(*[output_entry[f] for f in self.SUMMARY_OUTPUT_FIELDS],
+                    if self.barcode_mapping is not None:
+                        output_entry['barcode'] = self.barcode_mapping[entry.get('barcode')]
+                    if self.polya_enabled:
+                        output_entry['polya_dwell'] = (
+                            format(entry['polya']['dwell_time'], '.4f')
+                            if 'polya' in entry else '')
+
+                    print(*[output_entry[f] for f in self.output_fields],
                           file=self.file, sep='\t')
 
 
