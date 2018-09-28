@@ -75,9 +75,7 @@ poreplex_detect_events(PyObject *self, PyObject *args, PyObject *kw)
     npy_intp nsamples;
     raw_table rt;
     event_table et;
-
-    /* The default parameters for the event detector are from nanopolish. */
-    detector_param edparams={7, 14, 2.5f, 9.0, 1.0f};
+    detector_param edparams={30, 120, 3.0f, 9.0f, 8.0f};
 
     static char *keywords[] = {
         "signal", "window_length1", "window_length2", "threshold1",
