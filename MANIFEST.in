@@ -1,5 +1,6 @@
 include README.md
-include LICENSE.txt
+include LICENSE.md
+include CHANGELOG.md
 include poreplex/kmer_models/COPYRIGHT
 include poreplex/kmer_models/*.md
 include poreplex/kmer_models/*RNA/*.model

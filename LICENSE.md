@@ -17,3 +17,17 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+----
+
+Poreplex distribution contains a part of the source code from
+[scrappie](https://github.com/nanoporetech/scrappie), which was developed by
+Oxford Nanopore Technologies. Please refer to
+`src/contrib/scrappie/LICENSE.md` regarding the imported parts.
+
+----
+
+Poreplex distribution contains a part of the source code from
+[kmer_models](https://github.com/nanoporetech/kmer_models), which was
+developed by Oxford Nanopore Technologies. Please refer to
+`poreplex/kmer_models/LICENSE.md` regarding the imported parts.
