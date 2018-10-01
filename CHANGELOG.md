@@ -17,6 +17,8 @@
   `--minimum-length` switch. (Suggested by Nathan Roach)
 
 ### Changed
+- Fixed a segmentation fault when using
+  [albacore 2.3.3](https://community.nanoporetech.com/posts/albacore-2-3-3).
 - Fixed an error that stops overall process by an invalid FAST5 file.
 - Fixed a problem that separate lines of FASTA, FASTQ or
   `sequencing-summary.txt` are mixed up in the output file sometimes.
