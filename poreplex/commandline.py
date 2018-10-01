@@ -279,7 +279,7 @@ def main(args):
     config['barcoding'] = args.barcoding
     config['measure_polya'] = args.polya
     config['filter_unsplit_reads'] = not args.keep_unsplit
-    config['batch_chunk_size'] = args.batch_chunk
+    config['batch_chunk_size'] = args.batch_size
     config['albacore_onthefly'] = args.basecall
     config['dump_adapter_signals'] = args.dump_adapter_signals
     config['dump_basecalls'] = args.dump_basecalled_events
@@ -395,7 +395,7 @@ def __main__():
                        help='number of worker processes (default: 1)')
     group.add_argument('--tmpdir', default='', type=str, metavar='DIR',
                        help='temporary directory for intermediate data')
-    group.add_argument('--batch-chunk', default=128, type=int, metavar='SIZE',
+    group.add_argument('--batch-size', default=128, type=int, metavar='SIZE',
                        help='number of files in a single batch (default: 128)')
     group.add_argument('--version', action=VersionAction,
                        help="show program's version number and exit")

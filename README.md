@@ -289,7 +289,7 @@ usage: poreplex -i DIR -o DIR [-c NAME] [--trim-adapter] [--keep-unsplit]
                 [--nanopolish] [--dump-adapter-signals]
                 [--dump-basecalled-events] [--dashboard]
                 [--contig-aliases FILE] [-q] [-y] [-p COUNT] [--tmpdir DIR]
-                [--batch-chunk SIZE] [--version] [-h]
+                [--batch-size SIZE] [--version] [-h]
 ```
 
 | Short option        | Long option            | Description                    |
@@ -303,6 +303,7 @@ usage: poreplex -i DIR -o DIR [-c NAME] [--trim-adapter] [--keep-unsplit]
 |                     | `--keep-unsplit`       | don't remove unsplit reads fused of two or more RNAs in output |
 | **Optional Analyses** |||
 |                     | `--barcoding`          | sort barcoded reads into separate outputs |
+|                     | `--polya`              | output poly(A) tail length measurements |
 |                     | `--basecall`           | call the ONT albacore for basecalling on-the-fly |
 |                     | `--align INDEXFILE`    | align basecalled reads using minimap2 and create BAM files |
 | **Live Mode** |||
@@ -323,7 +324,7 @@ usage: poreplex -i DIR -o DIR [-c NAME] [--trim-adapter] [--keep-unsplit]
 | **Pipeline Options** |||
 | `-p COUNT`          | `--parallel COUNT`     | number of worker processes (default: 1) |
 |                     | `--tmpdir DIR`         | temporary directory for intermediate data |
-|                     | `--batch-chunk SIZE`   | number of files in a single batch (default: 128) |
+|                     | `--batch-size SIZE`    | number of files in a single batch (default: 128) |
 |                     | `--version`            | show program's version number and exit |
 | `-h`                | `--help`               | show this help message and exit |
 
