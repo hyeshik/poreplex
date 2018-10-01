@@ -161,6 +161,8 @@ class SequencingSummaryWriter:
                 if 'label' in entry:
                     output_entry = entry.copy()
                     output_entry['label'] = self.label_mapping[entry['label']]
+                    output_entry['filename'] = os.path.join(
+                        'fast5', output_entry['label'], entry['filename'])
                     if self.barcode_mapping is not None:
                         output_entry['barcode'] = self.barcode_mapping[entry.get('barcode')]
                     if self.polya_enabled:
