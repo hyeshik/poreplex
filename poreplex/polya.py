@@ -38,14 +38,14 @@ class PolyASignalAnalyzer:
             setattr(self, name, config[name])
 
     def __call__(self, npread, segments, stride):
-        import sys
         if 'polya-tail' not in segments:
             return
 
         raw_signal = npread.load_signal(pool=None, pad=False)
+
         rough_begin, rough_end = segments['polya-tail']
-        rough_begin = max(0, rough_begin * stride)
-        rough_end = min(len(raw_signal), (rough_end + 1) * stride)
+        rough_begin = max(0, rough_begin * stride - self.refinement_expansion)
+        rough_end = min(len(raw_signal), (rough_end + 1) * stride + self.refinement_expansion)
         polya_signal = raw_signal[rough_begin:rough_end]
 
         events = pd.DataFrame(detect_events(polya_signal, **self.event_detection))
