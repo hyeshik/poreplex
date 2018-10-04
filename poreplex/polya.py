@@ -23,6 +23,7 @@
 from .csupport import detect_events
 import numpy as np
 import pandas as pd
+from functools import partial
 import os
 
 class PolyASignalAnalyzer:
@@ -30,7 +31,7 @@ class PolyASignalAnalyzer:
     CONFIG_SLOTS = [
         'refinement_expansion', 'signal_stdv_max', 'event_detection',
         'signal_z_threshold', 'spike_tolerance', 'spike_max_length',
-        'spike_weight', 'openend_expansion'
+        'spike_weight', 'openend_expansion', 'signal_stdv_range',
     ]
 
     def __init__(self, config):
@@ -46,10 +47,12 @@ class PolyASignalAnalyzer:
         polya_signal = raw_signal[rough_begin:rough_end]
 
         events = pd.DataFrame(detect_events(polya_signal, **self.event_detection))
+        events['stdv'] = events.apply(partial(self.calc_internal_signal_stdv, polya_signal),
+                                      axis=1)
+
         longest_event = events.loc[events['length'].idxmax()]
         calc_z_against_longest_event = (
                     lambda ev1, ev2=longest_event: (ev1['mean'] - ev2['mean']) / ev2['stdv'])
-
         events['z'] = events.apply(calc_z_against_longest_event, axis=1).abs()
 
         polya_events = self.find_best_polya_interval(events)
@@ -81,6 +84,12 @@ class PolyASignalAnalyzer:
                 'dwell_time': dwell_time / npread.sampling_rate,
                 'spikes': spikes,
             })
+
+    def calc_internal_signal_stdv(self, signal, row):
+        length = int(row['length'])
+        begin = int(row['start'] + length * self.signal_stdv_range[0])
+        end = int(row['start'] + length * self.signal_stdv_range[1])
+        return signal[begin:end].std() if end - begin > 2 else np.nan
 
     def find_best_polya_interval(self, events):
         nullmtx = np.zeros([len(events) + 1, len(events) + 1], dtype=np.int64)
