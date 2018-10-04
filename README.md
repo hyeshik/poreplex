@@ -222,9 +222,9 @@ inactivation of enzymes).
 </p>
 
 *Poreplex* detects potential artifacts by detecting multiple appearances of the
-signature of the DNA adapter in a single read. The default parameters
-for the filtering can be too sensitive for some experiments. You can
-disable the pseudo-fusion filter with the `--keep-unsplit` option.
+signature of the DNA adapter in a single read when the `--filter-chimera` switch
+is turned on. Note that the default parameters for the filtering can be
+too sensitive for some experiments.
 
 ## Output formats
 
@@ -283,7 +283,7 @@ the main steps.
 ## Command line options
 
 ```bash
-usage: poreplex -i DIR -o DIR [-c NAME] [--trim-adapter] [--keep-unsplit]
+usage: poreplex -i DIR -o DIR [-c NAME] [--trim-adapter] [--filter-chimera]
                 [--barcoding] [--basecall] [--align INDEXFILE] [--live]
                 [--live-delay SECONDS] [--fastq] [--fast5] [--symlink-fast5]
                 [--nanopolish] [--dump-adapter-signals]
@@ -300,7 +300,7 @@ usage: poreplex -i DIR -o DIR [-c NAME] [--trim-adapter] [--keep-unsplit]
 | `-c NAME`           | `--config NAME`        | path to signal processing configuration |
 | **Basic Processing Options** |||
 |                     | `--trim-adapter`       | trim 3′ adapter sequences from FASTQ outputs |
-|                     | `--keep-unsplit`       | don't remove unsplit reads fused of two or more RNAs in output |
+|                     | `--filter-chimera`     | remove unsplit reads fused of two or more RNAs in output |
 | **Optional Analyses** |||
 |                     | `--barcoding`          | sort barcoded reads into separate outputs |
 |                     | `--polya`              | output poly(A) tail length measurements |
