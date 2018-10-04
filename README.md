@@ -99,12 +99,12 @@ poreplex -i path/to/fast5 -o path/to/output --trim-adapter --barcoding --basecal
   --parallel 40 --live --align GRCz11-transcriptome.mmidx --dashboard
 ```
 
-By default, *poreplex* discards pseudo-fusion reads which may originate
-from insufficiently segmented signals. You can suppress the filtering
-by a switch.
+*Poreplex* detects pseudo-fusion reads which may originate from
+insufficiently segmented signals if `--filter-chimera` is given. This
+improves the overall accuracy of demultiplexing.
 
 ```bash
-poreplex -i path/to/fast5 -o path/to/output --keep-unsplit
+poreplex -i path/to/fast5 -o path/to/output --filter-chimera
 ```
 
 ## Barcoding direct RNA sequencing libraries

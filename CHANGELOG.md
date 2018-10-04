@@ -25,6 +25,8 @@
   group.
 - Fixed a problem that separate lines of FASTA, FASTQ or
   `sequencing-summary.txt` are mixed up in the output file sometimes.
+- Turned off the chimeric read filter by default. Now the `--filter-chimera`
+  option turns it back on.
 - Updated the neural network model for barcode demultiplexing for
   even less false positives using randomly stitched signal fragments
   as a background.
