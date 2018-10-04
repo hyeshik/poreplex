@@ -30,20 +30,17 @@ class PolyASignalAnalyzer:
     CONFIG_SLOTS = [
         'refinement_expansion', 'signal_stdv_max', 'event_detection',
         'signal_z_threshold', 'spike_tolerance', 'spike_max_length',
-        'spike_weight',
+        'spike_weight', 'openend_expansion'
     ]
 
     def __init__(self, config):
         for name in self.CONFIG_SLOTS:
             setattr(self, name, config[name])
 
-    def __call__(self, npread, segments, stride):
-        if 'polya-tail' not in segments:
-            return
-
+    def __call__(self, npread, rough_range, stride):
         raw_signal = npread.load_signal(pool=None, pad=False)
 
-        rough_begin, rough_end = segments['polya-tail']
+        rough_begin, rough_end = rough_range
         rough_begin = max(0, rough_begin * stride - self.refinement_expansion)
         rough_end = min(len(raw_signal), (rough_end + 1) * stride + self.refinement_expansion)
         polya_signal = raw_signal[rough_begin:rough_end]
@@ -56,6 +53,13 @@ class PolyASignalAnalyzer:
         events['z'] = events.apply(calc_z_against_longest_event, axis=1).abs()
 
         polya_events = self.find_best_polya_interval(events)
+
+        # Retry it with right-extended interval if poly(A) is not terminated within the interval
+        if (len(polya_events) > 0 and polya_events.index[-1] == events.index[-1] and
+                    rough_end < len(raw_signal)):
+            return self(npread,
+                        (rough_range[0], rough_range[1] + self.openend_expansion // stride),
+                        stride)
 
         # Quality check for the longest event
         if longest_event['stdv'] < self.signal_stdv_max and len(polya_events) > 0:

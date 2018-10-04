@@ -244,8 +244,8 @@ class SignalAnalysis:
                 self.push_barcode_signal(signal, segments)
 
             # Measure poly(A) tail signals
-            if self.config['measure_polya']:
-                self.analyzer.polyaanalyzer(self.npread, segments, stride)
+            if self.config['measure_polya'] and 'polya-tail' in segments:
+                self.analyzer.polyaanalyzer(self.npread, segments['polya-tail'], stride)
 
             # Load basecalled events for further jobs working also in base-space
             events = self.load_events()
