@@ -278,7 +278,7 @@ def main(args):
     config['cleanup_tmpdir'] = False # will be changed during creation of output dirs
     config['barcoding'] = args.barcoding
     config['measure_polya'] = args.polya
-    config['filter_unsplit_reads'] = not args.keep_unsplit
+    config['filter_unsplit_reads'] = args.filter_chimera
     config['batch_chunk_size'] = args.batch_size
     config['albacore_onthefly'] = args.basecall
     config['dump_adapter_signals'] = args.dump_adapter_signals
@@ -344,8 +344,8 @@ def __main__():
                        help="trim 3' adapter sequences from FASTQ outputs")
     group.add_argument('--minimum-length', default=10, type=int, metavar='LEN',
                        help="discard reads shorter than LEN (default: 10)")
-    group.add_argument('--keep-unsplit', default=False, action='store_true',
-                       help="don't remove unsplit reads fused of two or more RNAs in output")
+    group.add_argument('--filter-chimera', default=False, action='store_true',
+                       help="remove unsplit reads fused of two or more RNAs in output")
 
     group = parser.add_argument_group('Optional Analyses')
     group.add_argument('--barcoding', default=False, action='store_true',
