@@ -244,8 +244,12 @@ class SignalAnalysis:
                 self.push_barcode_signal(signal, segments)
 
             # Measure poly(A) tail signals
-            if self.config['measure_polya'] and 'polya-tail' in segments:
-                self.analyzer.polyaanalyzer(self.npread, segments['polya-tail'], stride)
+            if self.config['measure_polya']:
+                if 'polya-tail' in segments:
+                    rough_range = segments['polya-tail']
+                else:
+                    rough_range = segments['adapter'][1] + 1, None
+                self.analyzer.polyaanalyzer(self.npread, rough_range, stride)
 
             # Load basecalled events for further jobs working also in base-space
             events = self.load_events()
@@ -291,6 +295,9 @@ class SignalAnalysis:
 
         if self.npread.polya is not None:
             polya = self.npread.polya
+            if 'polya-tail' in segments:
+                attrlist.append(('polya_end_debug',
+                                 np.uint32((segments['polya-tail'][1] + 1) * stride)))
             attrlist.append(('polya_begin', np.uint32(polya['begin'])))
             attrlist.append(('polya_end', np.uint32(polya['end'])))
             attrlist.append(('spikes', repr(polya['spikes']).encode()))
