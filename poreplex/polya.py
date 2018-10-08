@@ -80,13 +80,17 @@ class PolyASignalAnalyzer:
                         stride, polya_range)
 
         # Warp to the recalibration mode if the mean signal level is out of expected range.
-        if polya_range is None:
+        def is_polya_signal_shifted():
             mean_polya_level = ((polya_events['mean'] * polya_events['length']).sum() /
                                 polya_events['length'].sum())
-            if abs(mean_polya_level - self.polya_mean_dist[0]) > self.polya_mean_trigger_recalibration:
-                return self.try_recalibrate_shifted_signal(npread, events, polya_signal,
-                            signal_begin, signal_end, base_range, adapter_end,
-                            full_length, stride)
+            return (
+                abs(mean_polya_level - self.polya_mean_dist[0]) >
+                self.polya_mean_trigger_recalibration)
+
+        if len(polya_events) == 0 or (polya_range is None and is_polya_signal_shifted):
+            return self.try_recalibrate_shifted_signal(npread, events, polya_signal,
+                        signal_begin, signal_end, base_range, adapter_end,
+                        full_length, stride)
 
         # Quality check for the longest event
         longest_event = polya_events.loc[polya_events['length'].idxmax()]
