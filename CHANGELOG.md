@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.1] - 2018-10-09
+
+This minor release fixes an ABI compatibility issues in the binary packages.
+
 ## [0.3] - 2018-10-09
 
 ### Added

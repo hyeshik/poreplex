@@ -27,7 +27,7 @@ __all__ = [
     'OUTPUT_NAME_UNDETERMINED', 'OUTPUT_NAME_BARCODING_OFF',
 ]
 
-__version__ = '0.3'
+__version__ = '0.3.1'
 
 OUTPUT_NAME_PASSED = 'pass'
 OUTPUT_NAME_FAILED = 'fail'
