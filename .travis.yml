@@ -1,13 +1,18 @@
-language: python
-python:
-  - "3.5"
-  - "3.6"
+matrix:
+  include:
+    - sudo: required
+      services:
+        - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_x86_64
+    - sudo: required
+      services:
+        - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686
+           PRE_CMD=linux32
+
 install:
-  - pip install .
+  - docker pull $DOCKER_IMAGE
+
 script:
-  - py.test
-#matrix:
-#  include:
-#    - python: 3.7
-#      dist: xenial
-#      sudo: true
+  - docker run --rm -v `pwd`:/io $DOCKER_IMAGE $PRE_CMD /io/travis/build-wheels.sh
+  - ls wheelhouse/
