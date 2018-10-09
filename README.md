@@ -283,8 +283,9 @@ the main steps.
 ## Command line options
 
 ```bash
-usage: poreplex -i DIR -o DIR [-c NAME] [--trim-adapter] [--filter-chimera]
-                [--barcoding] [--basecall] [--align INDEXFILE] [--live]
+usage: poreplex -i DIR -o DIR [-c NAME] [--trim-adapter]
+                [--minimum-length LEN] [--filter-chimera] [--barcoding]
+                [--polya] [--basecall] [--align INDEXFILE] [--live]
                 [--live-delay SECONDS] [--fastq] [--fast5] [--symlink-fast5]
                 [--nanopolish] [--dump-adapter-signals]
                 [--dump-basecalled-events] [--dashboard]
