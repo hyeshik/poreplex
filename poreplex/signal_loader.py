@@ -227,7 +227,7 @@ class NanoporeRead:
 
         return signal_means
 
-    def load_signal(self, end=None, pool=None, pad=False):
+    def load_signal(self, end=None, pool=None, pad=False, scale=True):
         # Load from the cache if available
         if self.full_raw_signal is not None:
             sig = self.full_raw_signal
@@ -252,10 +252,13 @@ class NanoporeRead:
             elif pad and len(sig) < expected_size:
                 sig = np.pad(sig, [expected_size - len(sig), 0], 'constant')
 
-        if self.scaling_params is None:
-            raise Exception('Scaling parameters were not set for this read.')
+        if scale:
+            if self.scaling_params is None:
+                raise Exception('Scaling parameters were not set for this read.')
 
-        return np.poly1d(self.scaling_params)(sig)
+            return np.poly1d(self.scaling_params)(sig)
+        else:
+            return sig
 
     def load_fast5_events(self):
         if self.fast5 is None:
@@ -282,7 +285,7 @@ class NanoporeRead:
             bcall.close()
 
     def call_albacore(self, albacore):
-        rawdata = self.load_signal(pool=False)
+        rawdata = self.load_signal(pool=False, scale=False)
         bcall = albacore.basecall(
                     rawdata, self.channel_info, self.read_info,
                     os.path.basename(self.filename).rsplit('.', 1)[0])

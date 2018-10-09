@@ -310,16 +310,13 @@ class SignalAnalysis:
     def load_events(self):
         if self.config['albacore_onthefly']: # Call albacore to get basecalls.
             events = self.npread.call_albacore(self.analyzer.albacore)
-            # We feed pre-scaled signals to albacore for basecall.
-            events['scaled_mean'] = events['mean']
         else: # Load from Analysis/ objects in the FAST5.
             events = self.npread.load_fast5_events()
 
-            if self.npread.scaling_params is None:
-                raise Exception('Signal scaling is not available yet.')
+        if self.npread.scaling_params is None:
+            raise Exception('Signal scaling is not available yet.')
 
-            events['scaled_mean'] = np.poly1d(self.npread.scaling_params)(events['mean'])
-
+        events['scaled_mean'] = np.poly1d(self.npread.scaling_params)(events['mean'])
         events['pos'] = np.cumsum(events['move'])
 
         duration = np.hstack((np.diff(events['start']), [1])).astype(np.uint64)
