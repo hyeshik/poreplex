@@ -31,7 +31,8 @@ class PolyASignalAnalyzer:
     CONFIG_SLOTS = [
         'refinement_expansion', 'event_detection', 'polya_stdv_max', 'polya_stdv_range',
         'spike_tolerance', 'spike_weight', 'openend_expansion', 'recalibrate_shifted_signal',
-        'polya_mean_dist', 'polya_mean_z_cutoff', 'polya_mean_trigger_recalibration'
+        'polya_mean_dist', 'polya_mean_z_cutoff', 'polya_mean_trigger_recalibration',
+        'maximum_openend_extension'
     ]
 
     def __init__(self, config):
@@ -45,7 +46,7 @@ class PolyASignalAnalyzer:
 
         self.polya_mean_trigger_recalibration *= config['polya_mean_dist'][1]
 
-    def __call__(self, npread, rough_range, stride, polya_range=None):
+    def __call__(self, npread, rough_range, stride, polya_range=None, ext_depth=0):
         raw_signal = npread.load_signal(pool=None, pad=False)
 
         minimum_expansion_unit = self.openend_expansion // stride
@@ -66,18 +67,19 @@ class PolyASignalAnalyzer:
                                      else self.try_recalibrate_shifted_signal)
         entryfunc(npread, events, polya_signal, insp_begin, insp_end,
                   (rough_begin, rough_end), adapter_end, len(raw_signal), stride,
-                  polya_range)
+                  polya_range, ext_depth)
 
     def call_polya(self, npread, events, polya_signal, signal_begin, signal_end,
-                   base_range, adapter_end, full_length, stride, polya_range=None):
+                   base_range, adapter_end, full_length, stride, polya_range=None,
+                   ext_depth=0):
         polya_events = self.find_best_polya_interval(events)
 
         # Retry it with right-extended interval if poly(A) is not terminated within the interval
         if (len(polya_events) > 0 and polya_events.index[-1] == events.index[-1] and
-                    signal_end < full_length):
+                    signal_end < full_length and ext_depth < self.maximum_openend_extension):
             return self(npread,
                         (base_range[0], base_range[1] + self.openend_expansion // stride),
-                        stride, polya_range)
+                        stride, polya_range, ext_depth + 1)
 
         # Warp to the recalibration mode if the mean signal level is out of expected range.
         def is_polya_signal_shifted():
@@ -90,7 +92,7 @@ class PolyASignalAnalyzer:
         if len(polya_events) == 0 or (polya_range is None and is_polya_signal_shifted):
             return self.try_recalibrate_shifted_signal(npread, events, polya_signal,
                         signal_begin, signal_end, base_range, adapter_end,
-                        full_length, stride)
+                        full_length, stride, None, ext_depth)
 
         # Quality check for the longest event
         longest_event = polya_events.loc[polya_events['length'].idxmax()]
@@ -117,11 +119,11 @@ class PolyASignalAnalyzer:
         elif polya_range is None:
             self.try_recalibrate_shifted_signal(npread, events, polya_signal,
                         signal_begin, signal_end, base_range, adapter_end,
-                        full_length, stride)
+                        full_length, stride, None, ext_depth)
 
     def try_recalibrate_shifted_signal(self, npread, events, polya_signal, signal_begin,
                                   signal_end, base_range, adapter_end, full_length, stride,
-                                  polya_range=None):
+                                  polya_range=None, ext_depth=0):
         config = self.recalibrate_shifted_signal
         anchorevents = events[(events['start'] <= adapter_end +
                                     config['max_dist_from_adapter']) &
@@ -139,7 +141,8 @@ class PolyASignalAnalyzer:
         events['is_polya'] = events['mean'].between(*polya_range)
         if events[events['is_polya']]['length'].sum() >= config['min_length']:
             self.call_polya(npread, events, polya_signal, signal_begin, signal_end,
-                            base_range, adapter_end, full_length, stride, polya_range)
+                            base_range, adapter_end, full_length, stride, polya_range,
+                            ext_depth)
 
     def calc_internal_polya_stdv(self, signal, row):
         length = int(row['length'])
