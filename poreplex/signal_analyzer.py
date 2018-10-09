@@ -117,6 +117,7 @@ class SignalAnalyzer:
                 else:
                     sys.stdout.flush()
             except Exception as exc:
+                f5file = siganal.npread.filename
                 error = self.pack_unhandled_exception(f5file, exc, sys.exc_info())
                 siganal.set_error(error)
             finally:
@@ -132,18 +133,20 @@ class SignalAnalyzer:
 
         return results
 
-    def pack_unhandled_exception(self, filename, exc, excinfo):
+    def pack_unhandled_exception(self, f5filename, exc, excinfo):
         exc_type, exc_obj, exc_tb = excinfo
-        filename = os.path.split(exc_tb.tb_frame.f_code.co_filename)[-1]
+        srcfilename = os.path.split(exc_tb.tb_frame.f_code.co_filename)[-1]
         errorf = StringIO()
         traceback.print_exc(file=errorf)
 
-        errmsg = '[{filename}:{lineno}] Unhandled exception {name}: {msg}\n{exc}'.format(
-            filename=filename, lineno=exc_tb.tb_lineno,
-            name=type(exc).__name__, msg=str(exc), exc=errorf.getvalue())
+        errmsg = ('[{srcfilename}:{lineno}] ({f5filename}) Unhandled '
+                  'exception {name}: {msg}\n{exc}'.format(
+            srcfilename=srcfilename, lineno=exc_tb.tb_lineno,
+            f5filename=f5filename, name=type(exc).__name__, msg=str(exc),
+            exc=errorf.getvalue()))
 
         return {
-            'filename': filename,
+            'filename': f5filename,
             'status': 'unknown_error',
             'error_message': errmsg,
         }
