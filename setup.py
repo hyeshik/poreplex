@@ -33,7 +33,8 @@ scrappie_sources = """
 
 mod_csupport = Extension('poreplex.csupport',
                          sources=['src/csupport.c'] + scrappie_sources,
-                         include_dirs=['src/contrib/scrappie', numpy.get_include()])
+                         include_dirs=['src/contrib/scrappie', numpy.get_include()],
+                         extra_compile_args=["-std=c99"])
 
 setup(
     name='poreplex',
