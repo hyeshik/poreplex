@@ -10,3 +10,5 @@ include src/*.c
 include src/contrib/scrappie/*.md
 include src/contrib/scrappie/*.c
 include src/contrib/scrappie/*.h
+include src/contrib/scrappie/*.diff
+recursive-include training Snakefile *.yaml *.fa.gz *.txt *.py
