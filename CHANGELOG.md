@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.3] - 2018-XX-YY
+## [0.3] - 2018-10-09
 
 ### Added
 - Reads now can be demultiplexed without basecalling.
