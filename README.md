@@ -5,7 +5,7 @@ for RNA Biology and yields the processed data in the ready-to-use forms.
 
 [![PyPI status](https://img.shields.io/pypi/v/poreplex.svg)](https://pypi.python.org/pypi/poreplex)
 [![Build Status](https://travis-ci.org/hyeshik/poreplex.svg?branch=master)](https://travis-ci.org/hyeshik/poreplex)
-[![GitHub license](https://img.shields.io/github/license/hyeshik/poreplex.svg)](https://github.com/hyeshik/poreplex/blob/master/LICENSE.txt)
+[![GitHub license](https://img.shields.io/github/license/hyeshik/poreplex.svg)](https://github.com/hyeshik/poreplex/blob/master/LICENSE.md)
 [![Twitter Follow](https://img.shields.io/twitter/follow/hyeshik.svg?style=social&logo=twitter)](https://twitter.com/hyeshik)
 
 ## Features
