@@ -23,6 +23,7 @@
 
 from setuptools import setup
 from distutils.core import Extension
+import numpy
 
 extra_dependencies_live = ['inotify >= 0.2.9']
 
@@ -32,7 +33,7 @@ scrappie_sources = """
 
 mod_csupport = Extension('poreplex.csupport',
                          sources=['src/csupport.c'] + scrappie_sources,
-                         include_dirs=['src/contrib/scrappie'])
+                         include_dirs=['src/contrib/scrappie', numpy.get_include()])
 
 setup(
     name='poreplex',
