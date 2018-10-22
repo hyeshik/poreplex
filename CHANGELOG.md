@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4] - 2018-mm-dd
+
+### Changed
+
+- Fixed `filename` in `sequencing_summary.txt` points to wrong locations of
+  FAST5 files when both FAST5 output and barcoding are turned on.
+
 ## [0.3.1] - 2018-10-09
 
 This minor release fixes an ABI compatibility issues in the binary packages.

@@ -151,8 +151,14 @@ class SequencingSummaryWriter:
             self.polya_enabled = False
 
         if config['fast5_output']:
-            self.format_filename = (lambda entry:
-                os.path.join('fast5', entry['label'], entry['filename']))
+            if config['barcoding']:
+                self.format_filename = (lambda entry:
+                    os.path.join('fast5', entry['label'],
+                                 self.barcode_mapping[entry.get('barcode')],
+                                 entry['filename']))
+            else:
+                self.format_filename = (lambda entry:
+                    os.path.join('fast5', entry['label'], entry['filename']))
         else:
             self.format_filename = lambda entry: entry['filename']
 
