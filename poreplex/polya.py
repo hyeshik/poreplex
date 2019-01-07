@@ -49,8 +49,6 @@ class PolyASignalAnalyzer:
 
     def __call__(self, npread, rough_range, stride, polya_range=None, ext_depth=0):
         raw_signal = npread.load_signal(pool=None, pad=False)
-        if self.median_pre_filter > 1:
-            raw_signal = medfilt(raw_signal, self.median_pre_filter)
 
         minimum_expansion_unit = self.openend_expansion // stride
         rough_begin, rough_end = rough_range
@@ -61,6 +59,8 @@ class PolyASignalAnalyzer:
         insp_end = min(len(raw_signal), (rough_end + 1) * stride + self.refinement_expansion)
         adapter_end = rough_range[0] * stride - insp_begin
         polya_signal = raw_signal[insp_begin:insp_end]
+        if self.median_pre_filter > 1:
+            polya_signal = medfilt(polya_signal, self.median_pre_filter)
 
         events = pd.DataFrame(detect_events(polya_signal, **self.event_detection))
         events['end'] = (events['start'] + events['length']).astype(np.int64)
