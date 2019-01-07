@@ -6,6 +6,8 @@
 
 - Fixed `filename` in `sequencing_summary.txt` points to wrong locations of
   FAST5 files when both FAST5 output and barcoding are turned on.
+- Poly(A) dwell time measurement is now more robust to pepper and salt
+  noises.
 
 ## [0.3.1] - 2018-10-09
 

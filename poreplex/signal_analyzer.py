@@ -22,7 +22,6 @@
 
 from weakref import proxy
 from itertools import groupby
-from ont_fast5_api.fast5_file import Fast5File
 import multiprocessing as mp
 import numpy as np
 import pandas as pd

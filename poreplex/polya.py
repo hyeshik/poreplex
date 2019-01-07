@@ -23,6 +23,7 @@
 from .csupport import detect_events
 import numpy as np
 import pandas as pd
+from scipy.signal import medfilt
 from functools import partial
 import os
 
@@ -32,7 +33,7 @@ class PolyASignalAnalyzer:
         'refinement_expansion', 'event_detection', 'polya_stdv_max', 'polya_stdv_range',
         'spike_tolerance', 'spike_weight', 'openend_expansion', 'recalibrate_shifted_signal',
         'polya_mean_dist', 'polya_mean_z_cutoff', 'polya_mean_trigger_recalibration',
-        'maximum_openend_extension'
+        'maximum_openend_extension', 'median_pre_filter',
     ]
 
     def __init__(self, config):
@@ -48,6 +49,8 @@ class PolyASignalAnalyzer:
 
     def __call__(self, npread, rough_range, stride, polya_range=None, ext_depth=0):
         raw_signal = npread.load_signal(pool=None, pad=False)
+        if self.median_pre_filter > 1:
+            raw_signal = medfilt(raw_signal, self.median_pre_filter)
 
         minimum_expansion_unit = self.openend_expansion // stride
         rough_begin, rough_end = rough_range
