@@ -92,7 +92,7 @@ class PolyASignalAnalyzer:
                 abs(mean_polya_level - self.polya_mean_dist[0]) >
                 self.polya_mean_trigger_recalibration)
 
-        if len(polya_events) == 0 or (polya_range is None and is_polya_signal_shifted):
+        if len(polya_events) == 0 or (polya_range is None and is_polya_signal_shifted()):
             return self.try_recalibrate_shifted_signal(npread, events, polya_signal,
                         signal_begin, signal_end, base_range, adapter_end,
                         full_length, stride, None, ext_depth)
