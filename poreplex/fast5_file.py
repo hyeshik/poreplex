@@ -179,20 +179,3 @@ class Fast5Reader:
 
         return events
 
-
-if __name__ == '__main__':
-    #print(get_read_ids('workspace/batch_0.fast5', '../testinput-prep/sub10k.guppy'))
-
-    #topdir = '../testinput-prep/sub10k.single.few'
-    #for fn, read_id in get_read_ids('driller_20181010_FAJ06303_MN17871_sequencing_run_THP1_37494_read_10343_ch_405_strand.fast5', topdir):
-
-    #topdir = '../testinput-prep/sub10k.guppy'
-    #for fn, read_id in get_read_ids('workspace/batch_0.fast5', topdir):
-
-    topdir = '../testinput-prep/small-multi-albacore'
-    for fn, read_id in get_read_ids('small___read_ebee2fcb-b0f5-42bb-ac84-d966d657681f.fast5', topdir):
-        f5read = Fast5Reader(os.path.join(topdir, fn), read_id)
-        #print(f5read.get_raw_data())
-        print(f5read.get_basecall())
-        break
-
