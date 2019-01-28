@@ -25,6 +25,7 @@ from pysam import FUNMAP, FREVERSE, FSECONDARY, FSUPPLEMENTARY
 from pysam import AlignmentFile, AlignedSegment
 from struct import pack, unpack, calcsize
 from collections import defaultdict
+from threading import Lock
 from .utils import ensure_dir_exists
 
 MM_IDX_MAGIC = b"MMI\2"
@@ -43,6 +44,7 @@ class BAMWriter:
         header = self.build_header(indexed_sequence_list, index_options)
         ensure_dir_exists(output)
         self.writer = AlignmentFile(output, 'wb', header=header)
+        self.lock = Lock()
 
     def __del__(self):
         self.close()
@@ -60,7 +62,8 @@ class BAMWriter:
     def write(self, fields):
         line = '\t'.join(map(str, fields))
         segment = AlignedSegment.fromstring(line, self.writer.header)
-        self.writer.write(segment)
+        with self.lock:
+            self.writer.write(segment)
 
 
 class AlignmentWriter:
