@@ -39,6 +39,7 @@ from .io import (
 from .signal_analyzer import process_batch
 from .alignment_writer import AlignmentWriter
 from .utils import *
+from .fast5_file import get_read_ids
 
 FAST5_SUFFIX = '.fast5'
 
@@ -83,7 +84,7 @@ class ProcessingSession:
         self.reads_queued = self.reads_found = 0
         self.reads_processed = 0
         self.next_batch_id = 0
-        self.files_done = set()
+        self.reads_done = set()
         self.active_batches = 0
         self.jobstack = []
 
@@ -204,9 +205,10 @@ class ProcessingSession:
             # Remove duplicated results that could be fed multiple times in live monitoring
             nd_results = []
             for result in results:
-                if result['filename'] not in self.files_done:
+                readpath = result['filename'], result['read_id']
+                if readpath not in self.reads_done:
                     if result['status'] == 'okay':
-                        self.files_done.add(result['filename'])
+                        self.reads_done.add(readpath)
                     elif 'error_message' in result:
                         self.logger.error(result['error_message'])
                     nd_results.append(result)
@@ -246,8 +248,8 @@ class ProcessingSession:
         self.reads_processed += len(nd_results)
         self.reads_queued -= len(nd_results)
 
-    def queue_processing(self, filepath):
-        self.jobstack.append(filepath)
+    def queue_processing(self, readpath):
+        self.jobstack.append(readpath)
         self.reads_queued += 1
         self.reads_found += 1
         if len(self.jobstack) >= self.config['batch_chunk_size']:
@@ -261,17 +263,17 @@ class ProcessingSession:
             # Remove files already processed successfully. The same file can be
             # fed into the stack while making transition from the existing
             # files to newly updated files from the live monitoring.
-            files_to_submit = [
-                filename for filename in self.jobstack
-                if filename not in self.files_done]
-            num_canceled = len(self.jobstack) - len(files_to_submit)
+            reads_to_submit = [
+                readpath for readpath in self.jobstack
+                if readpath not in self.reads_done]
+            num_canceled = len(self.jobstack) - len(reads_to_submit)
             if num_canceled:
                 self.reads_queued -= num_canceled
                 self.reads_found -= num_canceled
             del self.jobstack[:]
 
-            if files_to_submit:
-                work = self.run_process_batch(batch_id, files_to_submit)
+            if reads_to_submit:
+                work = self.run_process_batch(batch_id, reads_to_submit)
                 self.loop.create_task(work)
 
     async def scan_dir_recursive(self, topdir, dirname=''):
@@ -295,7 +297,8 @@ class ProcessingSession:
 
         for filename in files:
             filepath = os.path.join(dirname, filename)
-            self.queue_processing(filepath)
+            for readpath in get_read_ids(filepath, topdir):
+                self.queue_processing(readpath)
 
         try:
             for subdir in dirs:
@@ -333,8 +336,9 @@ class ProcessingSession:
                                  "{}.".format(path, topdir))
                         continue
                     relpath = os.path.join(path[len(common):], filename)
-                    if relpath not in self.files_done:
-                        self.queue_processing(relpath)
+                    for readpath in get_read_ids(relpath, topdir):
+                        if readpath not in self.reads_done:
+                            self.queue_processing(readpath)
 
         except CancelledError:
             pass

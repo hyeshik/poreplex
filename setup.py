@@ -70,7 +70,6 @@ setup(
         'h5py >= 2.7.0',
         'mappy >= 2.10',
         'numpy >= 1.14',
-        'ont-fast5-api >= 0.4.1',
         'pandas >= 0.22.0',
         'pomegranate >= 0.10',
         'progressbar33 >= 2.4',

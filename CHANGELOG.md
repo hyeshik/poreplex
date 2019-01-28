@@ -2,13 +2,16 @@
 
 ## [0.4] - 2018-mm-dd
 
-### Changed
+### Added
+- Poreplex now support multi-read FAST5 files as inputs.
+- FAST5 files which had base-called with the ONT guppy can be used as inputs.
 
+### Changed
 - Fixed `filename` in `sequencing_summary.txt` points to wrong locations of
   FAST5 files when both FAST5 output and barcoding are turned on.
 - Poly(A) dwell time measurement is now more robust to pepper and salt
   noises.
-- Fixed alignment writers to BAM which had generated broken files in
+- Fixed BAM alignment writers which had generated broken files in
   multi-threaded processing.
 
 ## [0.3.1] - 2018-10-09

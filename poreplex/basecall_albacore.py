@@ -84,12 +84,12 @@ class AlbacoreBroker:
               else list(map(self.kmer_decode_table.__getitem__, result[field])))
              for field in field_names]))
 
-    def basecall(self, rawdata, channel_info, read_info, filename):
-        read_id = read_info.read_id
+    def basecall(self, rawdata, fast5, filename):
+        read_id = fast5.read_id
 
         self.core.pass_data({
-            'sampling_rate': channel_info['sampling_rate'],
-            'start_time': read_info.start_time,
+            'sampling_rate': fast5.sampling_rate,
+            'start_time': fast5.start_time,
             'read_id': read_id,
             'data_id': filename,
             'raw': rawdata,

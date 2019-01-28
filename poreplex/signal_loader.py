@@ -29,8 +29,7 @@ from scipy.stats import norm
 from functools import partial
 from .keras_wrap import keras
 from .signal_analyzer import SignalAnalysisError
-from ont_fast5_api.fast5_file import Fast5File
-from ont_fast5_api.analysis_tools.basecall_1d import Basecall1DTools
+from .fast5_file import Fast5Reader
 
 __all__ = ['SignalLoader', 'NanoporeRead']
 
@@ -75,8 +74,8 @@ class SignalLoader:
 
         return keras.models.load_model(model_file), scaler_cfg
 
-    def prepare_loading(self, filename):
-        npread = NanoporeRead(filename, self.fast5prefix)
+    def prepare_loading(self, filename, read_id):
+        npread = NanoporeRead(filename, self.fast5prefix, read_id)
         signal_means = npread.load_padded_signal_head(
                 self.scaler_cfg['length'], self.scaler_cfg['stride'],
                 self.scaler_cfg['min_length'])
@@ -112,13 +111,14 @@ class SignalLoader:
 
 class NanoporeRead:
 
-    fast5 = full_raw_signal = read_info = error_message = None
-    sequence_length = mean_qscore = 0
+    fast5 = full_raw_signal = error_message = None
+    sequence_length = mean_qscore = num_events = 0
     sequence = scaling_params = label = barcode = polya = None
 
-    def __init__(self, filename, srcdir):
+    def __init__(self, filename, srcdir, read_id):
         self.fullpath = os.path.join(srcdir, filename)
         self.filename = filename
+        self.read_id = read_id
         self.status = 'okay'
         self.stopped = False
         self.load()
@@ -158,20 +158,19 @@ class NanoporeRead:
         self.full_raw_signal = None
         if self.fast5 is not None:
             self.fast5.close()
-            self.fast5 = None
 
     def report(self):
-        rep = {'filename': self.filename, 'status': self.status}
+        rep = {'filename': self.filename, 'read_id': self.read_id,
+               'status': self.status}
 
-        if self.read_info is not None:
+        if self.fast5 is not None:
             rep.update({
-                'read_id': self.read_info.read_id,
-                'channel': self.channel_info['channel_number'],
-                'start_time': round(self.read_info.start_time / self.sampling_rate, 3),
-                'run_id': self.tracking_id['run_id'],
-                'sample_id': self.tracking_id['sample_id'],
-                'duration': self.read_info.duration,
-                'num_events': self.read_info.event_data_count,
+                'channel': self.fast5.channel_number,
+                'start_time': round(self.fast5.start_time / self.fast5.sampling_rate, 3),
+                'run_id': self.fast5.run_id,
+                'sample_id': self.fast5.sample_id,
+                'duration': self.fast5.duration,
+                'num_events': self.num_events,
                 'sequence_length': self.sequence_length,
                 'mean_qscore': self.mean_qscore,
             })
@@ -194,23 +193,22 @@ class NanoporeRead:
         return rep
 
     def load(self):
-        fast5 = Fast5File(self.fullpath, 'r')
-        if len(fast5.status.read_info) != 1:
+        try:
+            fast5 = Fast5Reader(self.fullpath, self.read_id)
+        except:
+            import traceback
+            traceback.print_exc()
             self.set_status('irregular_fast5', stop=True)
-            fast5.close()
             return
 
         self.fast5 = fast5
-        self.read_info = fast5.status.read_info[0]
-        self.channel_info = fast5.get_channel_info()
-        self.tracking_id = fast5.get_tracking_id()
-        self.sampling_rate = self.channel_info['sampling_rate']
+        self.sampling_rate = fast5.sampling_rate
 
     def load_padded_signal_head(self, length_limit, stride, min_length):
-        sigload_length = min(length_limit, self.read_info.duration)
+        sigload_length = min(length_limit, self.fast5.duration)
         sigload_length = sigload_length - sigload_length % stride
 
-        signal = self.fast5.get_raw_data(end=sigload_length, scale=True)
+        signal = self.fast5.get_raw_data(end=sigload_length)
         if len(signal) % stride > 0:
             signal = signal[:-(len(signal) % stride)]
 
@@ -234,7 +232,7 @@ class NanoporeRead:
         else:
             if self.fast5 is None:
                 raise Exception('Fast5 must be open for getting signals.')
-            sig = self.fast5.get_raw_data(end=end, scale=True)
+            sig = self.fast5.get_raw_data(end=end)
             if end is None:
                 self.full_raw_signal = sig
 
@@ -264,30 +262,21 @@ class NanoporeRead:
         if self.fast5 is None:
             raise Exception('Fast5 must be open for getting events.')
 
-        try:
-            bcall = Basecall1DTools(self.fast5)
-        except KeyError:
+        bcall = self.fast5.get_basecall()
+        if bcall is None:
             raise SignalAnalysisError('not_basecalled')
 
-        try:
-            events = bcall.get_event_data('template')
-            if events is None:
-                raise SignalAnalysisError('not_basecalled')
+        self.sequence_length = bcall['sequence_length']
+        self.mean_qscore = bcall['mean_qscore']
+        self.num_events = bcall['num_events']
+        self.sequence = bcall['sequence'], bcall['qstring'], 0
 
-            bcall_summary = self.fast5.get_summary_data(bcall.group_name)['basecall_1d_template']
-            self.sequence_length = bcall_summary['sequence_length']
-            self.mean_qscore = bcall_summary['mean_qscore']
-            self.num_events = bcall_summary['num_events']
-            self.sequence = bcall.get_called_sequence('template')[1:] + (0,)
-
-            return pd.DataFrame(events)
-        finally:
-            bcall.close()
+        return bcall['events']
 
     def call_albacore(self, albacore):
         rawdata = self.load_signal(pool=False, scale=False)
         bcall = albacore.basecall(
-                    rawdata, self.channel_info, self.read_info,
+                    rawdata, self.fast5,
                     os.path.basename(self.filename).rsplit('.', 1)[0])
         if bcall is None:
             raise SignalAnalysisError('not_basecalled')
@@ -298,21 +287,4 @@ class NanoporeRead:
         self.sequence = bcall['sequence'], bcall['qstring'], 0
 
         return bcall['events']
-
-
-if __name__ == '__main__':
-    import yaml
-    config = yaml.load(open('poreplex/presets/rna-r941.cfg'))['signal_processing']
-    scaler = SignalLoader(config, 'testinput/live')
-
-    from ont_fast5_api.fast5_file import Fast5File
-    import os
-    inpfiles = [f for f in os.listdir('testinput/live') if f.endswith('.fast5')]
-
-    for inpfile in inpfiles:
-        print('Loading', inpfile)
-        scaler.prepare_loading(inpfile)
-
-    scaler.determine_scaling()
-    print(next(iter(scaler.contexts.values())))
 

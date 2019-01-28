@@ -62,10 +62,10 @@ class SignalAnalyzer:
 
     _EVENT_DUMP_FIELD_NAMES = [
         'mean', 'start', 'stdv', 'length', 'model_state',
-        'move', 'p_model_state', 'weights', 'pos', 'end', 'scaled_mean']
+        'move', 'weights', 'pos', 'end', 'scaled_mean']
     _EVENT_DUMP_FIELD_DTYPES = [
         '<f4', '<u8', '<f4', '<u8', None, '<i4',
-        '<f4', '<f4', '<u8', '<u8', '<f8']
+        '<f4', '<u8', '<u8', '<f8']
     EVENT_DUMP_FIELDS = list(zip(_EVENT_DUMP_FIELD_NAMES, _EVENT_DUMP_FIELD_DTYPES))
 
     def __init__(self, config, batchid):
@@ -86,13 +86,13 @@ class SignalAnalyzer:
         # Initialize processors and preload signals from fast5
         nextprocs = []
         prepare_loading = self.loader.prepare_loading
-        for f5file in reads:
+        for f5file, read_id in reads:
             if not os.path.exists(os.path.join(inputdir, f5file)):
                 results.append({'filename': f5file, 'status': 'disappeared'})
                 continue
 
             try:
-                npread = prepare_loading(f5file)
+                npread = prepare_loading(f5file, read_id)
                 if npread.is_stopped():
                     results.append(npread.report())
                 else:
@@ -100,7 +100,7 @@ class SignalAnalyzer:
                     nextprocs.append(siganal)
                     loaded.append(npread)
             except Exception as exc:
-                error = self.pack_unhandled_exception(f5file, exc, sys.exc_info())
+                error = self.pack_unhandled_exception(f5file, read_id, exc, sys.exc_info())
                 results.append(error)
 
         # Determine scaling parameters
@@ -117,7 +117,8 @@ class SignalAnalyzer:
                     sys.stdout.flush()
             except Exception as exc:
                 f5file = siganal.npread.filename
-                error = self.pack_unhandled_exception(f5file, exc, sys.exc_info())
+                read_id = siganal.npread.read_id
+                error = self.pack_unhandled_exception(f5file, read_id, exc, sys.exc_info())
                 siganal.set_error(error)
             finally:
                 siganal.clear_cache()
@@ -132,20 +133,21 @@ class SignalAnalyzer:
 
         return results
 
-    def pack_unhandled_exception(self, f5filename, exc, excinfo):
+    def pack_unhandled_exception(self, f5filename, read_id, exc, excinfo):
         exc_type, exc_obj, exc_tb = excinfo
         srcfilename = os.path.split(exc_tb.tb_frame.f_code.co_filename)[-1]
         errorf = StringIO()
         traceback.print_exc(file=errorf)
 
-        errmsg = ('[{srcfilename}:{lineno}] ({f5filename}) Unhandled '
+        errmsg = ('[{srcfilename}:{lineno}] ({f5filename}#{read_id}) Unhandled '
                   'exception {name}: {msg}\n{exc}'.format(
             srcfilename=srcfilename, lineno=exc_tb.tb_lineno,
-            f5filename=f5filename, name=type(exc).__name__, msg=str(exc),
+            f5filename=f5filename, read_id=read_id, name=type(exc).__name__, msg=str(exc),
             exc=errorf.getvalue()))
 
         return {
             'filename': f5filename,
+            'read_id': read_id,
             'status': 'unknown_error',
             'error_message': errmsg,
         }
@@ -257,7 +259,7 @@ class SignalAnalysis:
             events = self.load_events()
             if self.config['dump_basecalls']:
                 self.analyzer.write_basecalled_events(
-                        self.npread.read_info.read_id, events,
+                        self.npread.read_id, events,
                         self.get_dump_attributes(segments, stride))
 
             # Trim adapter sequences referring to the segmentation and events
@@ -448,7 +450,7 @@ class SignalAnalysis:
     def dump_adapter_signal(self, signal, segments, stride):
         adapter_signal = signal[segments['adapter'][0]:segments['adapter'][1]+1]
         if len(adapter_signal) > 0:
-            read_id = self.npread.read_info.read_id
+            read_id = self.npread.read_id
             try:
                 self.analyzer.adapter_dump_group.create_dataset(read_id,
                     shape=(len(adapter_signal),), dtype=np.float32,
