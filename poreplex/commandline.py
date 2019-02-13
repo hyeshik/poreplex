@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2018 Institute for Basic Science
+# Copyright (c) 2018-2019 Institute for Basic Science
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,7 @@ VERSION_STRING = """\
 poreplex version {version}
 Written by Hyeshik Chang <hyeshik@snu.ac.kr>.
 
-Copyright (c) 2018 Institute for Basic Science""".format(version=__version__)
+Copyright (c) 2018-2019 Institute for Basic Science""".format(version=__version__)
 
 def show_banner():
     print("""

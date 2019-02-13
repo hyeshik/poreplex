@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2018 Institute for Basic Science
+# Copyright (c) 2018-2019 Institute for Basic Science
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,7 @@ mod_csupport = Extension('poreplex.csupport',
 setup(
     name='poreplex',
     packages=['poreplex'],
-    version='0.4.a1',
+    version='0.4',
     description='A versatile sequence read processor for nanopore direct RNA sequencing',
     author='Hyeshik Chang',
     author_email='hyeshik@snu.ac.kr',

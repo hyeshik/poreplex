@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.4] - 2018-mm-dd
+## [0.4] - 2019-02-13
 
 ### Added
 - Poreplex now support multi-read FAST5 files as inputs.

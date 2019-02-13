@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2018 Institute for Basic Science
+# Copyright (c) 2018-2019 Institute for Basic Science
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,7 @@ __all__ = [
     'OUTPUT_NAME_UNDETERMINED', 'OUTPUT_NAME_BARCODING_OFF',
 ]
 
-__version__ = '0.4.a1'
+__version__ = '0.4'
 
 OUTPUT_NAME_PASSED = 'pass'
 OUTPUT_NAME_FAILED = 'fail'
