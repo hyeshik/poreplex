@@ -39,7 +39,7 @@ mod_csupport = Extension('poreplex.csupport',
 setup(
     name='poreplex',
     packages=['poreplex'],
-    version='0.4',
+    version='0.4.1',
     description='A versatile sequence read processor for nanopore direct RNA sequencing',
     author='Hyeshik Chang',
     author_email='hyeshik@snu.ac.kr',

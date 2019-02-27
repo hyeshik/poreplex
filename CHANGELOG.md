@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.1] - 2019-02-27
+
+This release fixes the binary packages lacking the essential resource files.
+
 ## [0.4] - 2019-02-13
 
 ### Added
