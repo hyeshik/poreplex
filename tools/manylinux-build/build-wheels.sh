@@ -13,5 +13,5 @@ done
 
 # Bundle external shared libraries into the wheels
 for whl in wheelhouse/poreplex*.whl; do
-    auditwheel repair "$whl" -w /io/dists/
+    auditwheel repair "$whl" -w /io/dist/
 done
