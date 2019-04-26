@@ -168,11 +168,10 @@ class Fast5Reader:
     def construct_events_from_moves(self, analyses, summary):
         moves = analyses['BaseCalled_template/Move'][()]
         pos = moves.cumsum() - 1
-        num_moves = moves.sum()
-        kmer_size = int(summary['num_events'] - num_moves + 1)
-        assert kmer_size != 5 # change this if new model is introduced
+        kmer_size = len(summary['sequence']) - int(moves.sum()) + 1
+        assert kmer_size == 5 # change this if new model is introduced
 
-        revseq = summary['sequence'][::-1]
+        revseq = summary['sequence'][::-1].replace('U', 'T')
         seqgetter = lru_cache(3)(lambda x, k=kmer_size: revseq[int(x):int(x) + k])
 
         return pd.DataFrame({
