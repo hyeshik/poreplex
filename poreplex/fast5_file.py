@@ -25,6 +25,7 @@ import h5py
 import numpy as np
 import pandas as pd
 from scipy.signal import medfilt
+from functools import lru_cache
 import os.path
 
 __all__ = ['get_read_ids', 'Fast5Reader']
@@ -143,19 +144,41 @@ class Fast5Reader:
         summary['first_sample_template'] = int(segattrs['first_sample_template'])
 
         # Events mapping
-        summary['events'] = self.convert_events(analyses['BaseCalled_template/Events'], summary)
+        summary['events'] = self.load_events(analyses, summary)
 
         return summary
 
-    def convert_events(self, events, summary):
-        evdf = pd.DataFrame(events[()])
+    def load_events(self, analyses, summary):
+        if 'BaseCalled_template/Events' in analyses:
+            # `Events' is available in guppy < 2.3.7 and albacore
+            evdf = pd.DataFrame(analyses['BaseCalled_template/Events'][()])
+        elif 'BaseCalled_template/Move' in analyses:
+            # `Move' is available in guppy >= 2.3.7
+            evdf = self.construct_events_from_moves(analyses, summary)
+        else:
+            raise Exception("Neither `Events' or `Move' table found in the basecall.")
 
-        if len(evdf.columns) == 3 and 'move' in evdf.columns: # ONT Guppy
+        if len(evdf.columns) <= 3 and 'move' in evdf.columns: # ONT Guppy
             return self.convert_events_guppy(evdf, summary)
         elif len(evdf.columns) == 14: # ONT albacore >= 2.3.0
             return evdf
         else:
             raise Exception('Unsupported event table found.')
+
+    def construct_events_from_moves(self, analyses, summary):
+        moves = analyses['BaseCalled_template/Move'][()]
+        pos = moves.cumsum() - 1
+        num_moves = moves.sum()
+        kmer_size = int(summary['num_events'] - num_moves + 1)
+        assert kmer_size != 5 # change this if new model is introduced
+
+        revseq = summary['sequence'][::-1]
+        seqgetter = lru_cache(3)(lambda x, k=kmer_size: revseq[int(x):int(x) + k])
+
+        return pd.DataFrame({
+            'model_state': np.vectorize(seqgetter)(pos),
+            'move': moves
+        })
 
     def convert_events_guppy(self, events, summary):
         first_sample = summary['first_sample_template']
