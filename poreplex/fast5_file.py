@@ -170,20 +170,25 @@ class Fast5Reader:
         pos = moves.cumsum() - 1
         kmer_size = len(summary['sequence']) - int(moves.sum()) + 1
         revseq = summary['sequence'][::-1].replace('U', 'T')
+        qual = 1 - 10 ** -((np.frombuffer(summary['qstring'].encode(), 'B') - 33) / 10)
 
         if kmer_size == 5: # Guppy old models
-            pass
+            posshift = 2
         elif kmer_size == 1: # Guppy flip-flop models
             # Translate the 1-mer frames to 5-mer's for compatibility
             revseq = '__' + revseq + '__'
+            posshift = 0
         else:
             raise Exception("Move table is encoded with an unknown kmer-size.")
 
         kmergetter = lambda x: revseq[int(x):int(x) + 5]
         seqgetter = lru_cache(3)(kmergetter)
 
+        qualgetter = lru_cache(3)(lambda x, p=posshift: qual[int(x) + posshift])
+
         return pd.DataFrame({
             'model_state': np.vectorize(seqgetter)(pos),
+            'p_model_state': np.vectorize(qualgetter)(pos),
             'move': moves
         })
 
