@@ -1,5 +1,10 @@
 # Changelog
 
+## [x.x] - 2019-mm-dd
+
+### Added
+- Added a support for basecalls from the Guppy's flip-flop model.
+
 ## [0.4.1] - 2019-02-27
 
 This release fixes the binary packages lacking the essential resource files.

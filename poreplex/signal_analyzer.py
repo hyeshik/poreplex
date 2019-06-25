@@ -320,7 +320,7 @@ class SignalAnalysis:
         events['scaled_mean'] = np.poly1d(self.npread.scaling_params)(events['mean'])
         events['pos'] = np.cumsum(events['move'])
 
-        duration = np.hstack((np.diff(events['start']), [1])).astype(np.uint64)
+        duration = np.hstack((np.diff(events['start']), [1])).astype(np.int64)
         events['end'] = events['start'] + duration
 
         return events
