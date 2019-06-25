@@ -427,7 +427,7 @@ class SignalAnalysis:
             + [[np.inf, np.inf]])
         basequality_cutoff = config['basecount_quality_limit']
         count_high_quality_reads = lambda tbl: (
-            (tbl.groupby('pos').agg({'p_model_state': 'max'})['p_model_state']
+            (tbl.groupby('pos')['p_model_state'].max()
                 > basequality_cutoff).sum() if len(tbl) >= 0 else 0)
         subread_lengths = [
             count_high_quality_reads(events[events['start'].between(left, right)])
