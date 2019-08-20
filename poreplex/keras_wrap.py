@@ -32,5 +32,6 @@ try: # Suppress warnings and informative messages from keras and tf.
     sys.stderr, saved_stderr = StringIO(), sys.stderr
     import keras
     import tensorflow
+    tensorflow.logging.set_verbosity(tensorflow.logging.ERROR)
 finally:
     sys.stderr = saved_stderr

@@ -78,6 +78,7 @@ def load_config(args):
 def init_logging(config):
     logfile = os.path.join(config['outputdir'], 'poreplex.log')
     logger = logging.getLogger('poreplex')
+    logger.propagate = False
     handler = logging.FileHandler(logfile, 'w')
 
     logger.setLevel(logging.INFO)
