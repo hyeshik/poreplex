@@ -68,7 +68,7 @@ def load_config(args):
     else:
         errx('ERROR: Cannot find a configuration in {}.'.format(args.config))
 
-    config = yaml.load(open(config_path))
+    config = yaml.load(open(config_path), Loader=yaml.FullLoader)
     kmer_models_dir = os.path.join(os.path.dirname(__file__), 'kmer_models')
     if not os.path.isabs(config['kmer_model']):
         config['kmer_model'] = os.path.join(kmer_models_dir, config['kmer_model'])
