@@ -80,6 +80,12 @@ class Fast5Reader:
 
         self.load_metadata()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, tb):
+        self.close()
+
     def close(self):
         if self.handle is not None:
             self.handle.close()
@@ -91,7 +97,9 @@ class Fast5Reader:
         self.duration = int(sigattrs['duration'])
         self.start_time = int(sigattrs['start_time'])
         file_read_id = sigattrs['read_id'].decode()
-        if file_read_id != self.read_id:
+        if self.read_id is None:
+            self.read_id = file_read_id
+        elif file_read_id != self.read_id:
             raise ValueError('Unexpected read {} found in {}'.format(
                              file_read_id, self.path))
 
@@ -213,4 +221,33 @@ class Fast5Reader:
         events['length'] = block_stride
 
         return events
+
+    def copyto(self, dstfile):
+        nodepath = 'read_' + self.read_id
+
+        if self.is_multiread:
+            dstfile.copy(self.handle[nodepath], dstfile, nodepath)
+            return
+
+        if nodepath in dstfile:
+            raise Exception("Duplicated read '{}' found.".format(self.read_id))
+
+        try:
+            dstgrp = dstfile.create_group(nodepath)
+        except ValueError as exc:
+            raise Exception("Failed to create read '{}'.".format(self.read_id))
+
+        dstgrp.attrs['run_id'] = self.run_id
+
+        # Copy Raw signal to new file
+        dstgrp.copy(self.handle[self.read_node], 'Raw')
+
+        # Copy UniqueGlobalKey to new file
+        for grpname, grpobj in self.handle['UniqueGlobalKey'].items():
+            dstgrp.copy(grpobj, dstgrp, grpname)
+
+        # Copy other groups
+        for grpname, grpobj in self.handle.items():
+            if grpname not in ("Raw", "UniqueGlobalKey"):
+                dstgrp.copy(grpobj, grpname)
 

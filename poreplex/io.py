@@ -75,7 +75,6 @@ class FASTQWriter:
 def link_fast5_files(config, results):
     indir = config['inputdir']
     outdir = config['outputdir']
-    symlinkfirst = config['fast5_always_symlink']
     output_layout = config['output_layout']
     blacklist_hardlinks = set()
 
@@ -98,7 +97,7 @@ def link_fast5_files(config, results):
                 pass
 
         for retry in [0, 1]:
-            if not symlinkfirst and (original_dir, link_dir) not in blacklist_hardlinks:
+            if (original_dir, link_dir) not in blacklist_hardlinks:
                 try:
                     os.link(original_fast5, link_path)
                 except OSError as exc:
@@ -110,17 +109,9 @@ def link_fast5_files(config, results):
                     blacklist_hardlinks.add((original_dir, link_dir))
                 else:
                     break
-
-            try:
-                os.symlink(os.path.abspath(original_fast5), link_path)
-            except OSError as exc:
-                if exc.errno == EEXIST:
-                    os.unlink(link_path)
-                    continue
-                else:
-                    raise
-            else:
-                break
+        else:
+            raise Exception('Failed copy the read {} to {}.'.format(
+                            entry['read_id'], link_path))
 
 
 class SequencingSummaryWriter:

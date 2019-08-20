@@ -182,8 +182,7 @@ def show_configuration(config, output):
     _(" * Separate by barcode:\t", bool2yn(config['barcoding']))
     _(" * Real-time alignment:\t", bool2yn(config['minimap2_index']))
     _(" * FASTQ in output:\t", bool2yn(config['fastq_output']))
-    _(" * FAST5 in output:\t", bool2yn(config['fast5_output']),
-           '(Symlink)' if config['fast5_always_symlink'] else '')
+    _(" * FAST5 in output:\t", bool2yn(config['fast5_output']))
     _(" * Basecall table in output:", bool2yn(config['dump_basecalls']))
 
     if config['dump_adapter_signals']:
@@ -285,8 +284,7 @@ def main(args):
     config['dump_adapter_signals'] = args.dump_adapter_signals
     config['dump_basecalls'] = args.dump_basecalled_events
     config['fastq_output'] = args.align is None or args.fastq
-    config['fast5_output'] = args.fast5 or args.symlink_fast5 or args.nanopolish
-    config['fast5_always_symlink'] = args.symlink_fast5
+    config['fast5_output'] = args.fast5 or args.nanopolish
     config['nanopolish_output'] = args.nanopolish
     config['trim_adapter'] = args.trim_adapter
     config['minimum_sequence_length'] = args.minimum_length
@@ -370,9 +368,6 @@ def __main__():
                        help='write to FASTQ files even when BAM files are produced')
     group.add_argument('--fast5', default=False, action='store_true',
                        help='link or copy FAST5 files to separate output directories')
-    group.add_argument('--symlink-fast5', default=False, action='store_true',
-                       help='create symbolic links to FAST5 files in output directories '
-                            'even when hard linking is possible')
     group.add_argument('--nanopolish', default=False, action='store_true',
                        help='create a nanopolish readdb to enable access from nanopolish')
     group.add_argument('--dump-adapter-signals', default=False, action='store_true',
