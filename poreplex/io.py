@@ -31,8 +31,9 @@ import numpy as np
 import pandas as pd
 import logging
 import os
-from errno import EXDEV, EEXIST
+from . import OUTPUT_NAME_FAILED
 from .utils import ensure_dir_exists
+from .fast5_file import Fast5Reader, DuplicatedReadError
 
 
 class FASTQWriter:
@@ -72,46 +73,54 @@ class FASTQWriter:
                     self.streams[output_name].write(formatted.encode('ascii'))
 
 
-def link_fast5_files(config, results):
-    indir = config['inputdir']
-    outdir = config['outputdir']
-    output_layout = config['output_layout']
-    blacklist_hardlinks = set()
+class FAST5Writer:
 
-    for entry in results:
-        if 'label' not in entry: # Error before opening the FAST5
-            continue
+    def __init__(self, output_dir, output_layout, input_dir, batch_size=4000):
+        self.input_dir = input_dir
+        self.output_dir = output_dir
+        self.output_layout = output_layout
+        self.batch_size = batch_size
+        self.lock = Lock()
 
-        original_fast5 = os.path.join(indir, entry['filename'])
-        link_path = os.path.join(outdir, 'fast5',
-                                 output_layout[entry['label'], entry.get('barcode')],
-                                 entry['filename'])
+        self.open_files()
 
-        original_dir = os.path.dirname(original_fast5)
-        link_dir = os.path.dirname(link_path)
+    def open_files(self):
+        self.f5files = {
+            int_name: h5py.File(self.get_output_path(name), 'w')
+            for int_name, name in self.output_layout.items()}
+        self.f5turncounter = {
+            int_name: self.batch_size
+            for int_name, name in self.output_layout.items()}
 
-        if not os.path.isdir(link_dir):
-            try:
-                os.makedirs(link_dir)
-            except FileExistsError:
-                pass
+    def close(self):
+        for stream in self.f5files.values():
+            stream.close()
 
-        for retry in [0, 1]:
-            if (original_dir, link_dir) not in blacklist_hardlinks:
+    def get_output_path(self, name):
+        output_path = os.path.join(self.output_dir, 'fast5', name + '.fast5')
+        ensure_dir_exists(output_path)
+        return output_path
+
+    def post_write(self, name):
+        self.f5turncounter[name] -= 1
+
+        if self.f5turncounter[name] <= 0:
+            self.f5turncounter[name] = self.batch_size
+            self.f5files[name].close()
+            self.f5files[name] = h5py.File(self.get_output_path(name), 'w')
+
+    def transfer_reads(self, procresult):
+        with self.lock:
+            for entry in procresult:
+                output_name = entry.get('label', OUTPUT_NAME_FAILED), entry.get('barcode')
+                input_name = os.path.join(self.input_dir, entry['filename'])
+                f5rd = Fast5Reader(input_name, entry['read_id'])
                 try:
-                    os.link(original_fast5, link_path)
-                except OSError as exc:
-                    if exc.errno == EEXIST:
-                        os.unlink(link_path)
-                        continue
-                    elif exc.errno != EXDEV:
-                        raise
-                    blacklist_hardlinks.add((original_dir, link_dir))
+                    f5rd.copyto(self.f5files[output_name])
+                except DuplicatedReadError as exc:
+                    pass # Ignore duplicated reads for now.
                 else:
-                    break
-        else:
-            raise Exception('Failed copy the read {} to {}.'.format(
-                            entry['read_id'], link_path))
+                    self.post_write(output_name)
 
 
 class SequencingSummaryWriter:

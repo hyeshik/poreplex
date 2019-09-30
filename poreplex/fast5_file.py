@@ -28,7 +28,10 @@ from scipy.signal import medfilt
 from functools import lru_cache
 import os.path
 
-__all__ = ['get_read_ids', 'Fast5Reader']
+__all__ = ['get_read_ids', 'Fast5Reader', 'DuplicatedReadError']
+
+class DuplicatedReadError(Exception):
+    pass
 
 
 def get_read_ids(filename, basedir):
@@ -226,11 +229,16 @@ class Fast5Reader:
         nodepath = 'read_' + self.read_id
 
         if self.is_multiread:
-            dstfile.copy(self.handle[nodepath], dstfile, nodepath)
-            return
+            try:
+                dstfile.copy(self.handle[nodepath], dstfile, nodepath)
+                return
+            except RuntimeError as exc:
+                if 'destination object already exists' in exc.args[0]:
+                    raise DuplicatedReadError(exc.args[0])
+                raise
 
         if nodepath in dstfile:
-            raise Exception("Duplicated read '{}' found.".format(self.read_id))
+            raise DuplicatedReadError("Duplicated read '{}' found.".format(self.read_id))
 
         try:
             dstgrp = dstfile.create_group(nodepath)

@@ -285,6 +285,7 @@ def main(args):
     config['dump_basecalls'] = args.dump_basecalled_events
     config['fastq_output'] = args.align is None or args.fastq
     config['fast5_output'] = args.fast5 or args.nanopolish
+    config['fast5_batch_size'] = args.fast5_batch_size
     config['nanopolish_output'] = args.nanopolish
     config['trim_adapter'] = args.trim_adapter
     config['minimum_sequence_length'] = args.minimum_length
@@ -368,6 +369,8 @@ def __main__():
                        help='write to FASTQ files even when BAM files are produced')
     group.add_argument('--fast5', default=False, action='store_true',
                        help='link or copy FAST5 files to separate output directories')
+    group.add_argument('--fast5-batch-size', default=4000, type=int,
+                       help='number of reads in a FAST5 for output')
     group.add_argument('--nanopolish', default=False, action='store_true',
                        help='create a nanopolish readdb to enable access from nanopolish')
     group.add_argument('--dump-adapter-signals', default=False, action='store_true',

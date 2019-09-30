@@ -35,7 +35,7 @@ from . import *
 from .io import (
     FASTQWriter, SequencingSummaryWriter, FinalSummaryTracker,
     NanopolishReadDBWriter, create_adapter_dumps_inventory,
-    create_events_inventory, link_fast5_files)
+    create_events_inventory, FAST5Writer)
 from .signal_analyzer import process_batch
 from .alignment_writer import AlignmentWriter
 from .utils import *
@@ -95,7 +95,8 @@ class ProcessingSession:
         self.executor_io = ThreadPoolExecutor(2)
         self.executor_mon = ThreadPoolExecutor(2)
 
-        self.loop = self.fastq_writer = self.alignment_writer = self.npreaddb_writer = None
+        self.loop = self.fastq_writer = self.fast5_writer = \
+            self.alignment_writer = self.npreaddb_writer = None
         self.dashboard = self.pbar = None
 
     def __enter__(self):
@@ -111,7 +112,10 @@ class ProcessingSession:
         if self.config['fastq_output']:
             self.fastq_writer = FASTQWriter(
                 self.config['outputdir'], self.config['output_layout'])
-            OUTPUT_NAME_BARCODING_OFF
+        if self.config['fast5_output']:
+            self.fast5_writer = FAST5Writer(
+                self.config['outputdir'], self.config['output_layout'],
+                self.config['inputdir'], self.config['fast5_batch_size'])
         if self.config['nanopolish_output']:
             self.npreaddb_writer = NanopolishReadDBWriter(
                 self.config['outputdir'], self.config['output_layout'])
@@ -134,6 +138,10 @@ class ProcessingSession:
         if self.fastq_writer is not None:
             self.fastq_writer.close()
             self.fastq_writer = None
+
+        if self.fast5_writer is not None:
+            self.fast5_writer.close()
+            self.fast5_writer = None
 
         if self.npreaddb_writer is not None:
             self.npreaddb_writer.close()
@@ -220,12 +228,12 @@ class ProcessingSession:
                 if self.config['fastq_output']:
                     await self.run_in_executor_io(self.fastq_writer.write_sequences, nd_results)
 
+                if self.config['fast5_output']:
+                    await self.run_in_executor_io(self.fast5_writer.transfer_reads, nd_results)
+
                 if self.config['nanopolish_output']:
                     await self.run_in_executor_io(self.npreaddb_writer.write_sequences,
                                                   nd_results)
-
-                if self.config['fast5_output']:
-                    await self.run_in_executor_io(link_fast5_files, self.config, nd_results)
 
                 if self.config['minimap2_index']:
                     rescounts = await self.run_in_executor_io(self.alignment_writer.process,

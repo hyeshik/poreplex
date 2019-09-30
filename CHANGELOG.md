@@ -4,6 +4,8 @@
 
 ### Added
 - Added a support for basecalls from the Guppy's flip-flop model.
+- `--fast5` now writes multi-read FAST5 files by default. `--symlink-fast5`
+  is removed as symbolic links are not compatible with multi-read FAST5s.
 
 ## [0.4.1] - 2019-02-27
 
