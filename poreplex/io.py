@@ -23,6 +23,7 @@
 from pysam import BGZFile, faidx
 from glob import glob
 from functools import partial
+from itertools import count
 from collections import defaultdict
 from shutil import copyfileobj
 from threading import Lock
@@ -82,32 +83,26 @@ class FAST5Writer:
         self.batch_size = batch_size
         self.lock = Lock()
 
-        self.open_files()
+        self.prepare_files()
 
-    def open_files(self):
-        self.f5files = {
-            int_name: h5py.File(self.get_output_path(name), 'w')
-            for int_name, name in self.output_layout.items()}
-        self.f5turncounter = {
-            int_name: self.batch_size
+    def prepare_files(self):
+        self.f5files = {}
+        self.getf5hdl = {
+            int_name: self.generate_rotated_fast5_handle(name)
             for int_name, name in self.output_layout.items()}
 
     def close(self):
-        for stream in self.f5files.values():
-            stream.close()
+        for hdl in self.f5files.values():
+            hdl.close()
 
-    def get_output_path(self, name):
-        output_path = os.path.join(self.output_dir, 'fast5', name + '.fast5')
+    def generate_rotated_fast5_handle(self, name):
+        output_path = os.path.join(self.output_dir, 'fast5', name + '_{}.fast5')
         ensure_dir_exists(output_path)
-        return output_path
 
-    def post_write(self, name):
-        self.f5turncounter[name] -= 1
-
-        if self.f5turncounter[name] <= 0:
-            self.f5turncounter[name] = self.batch_size
-            self.f5files[name].close()
-            self.f5files[name] = h5py.File(self.get_output_path(name), 'w')
+        for fileno in count():
+            self.f5files[name] = hdl = h5py.File(output_path.format(fileno), 'w')
+            for _ in range(self.batch_size):
+                yield hdl
 
     def transfer_reads(self, procresult):
         with self.lock:
@@ -115,12 +110,11 @@ class FAST5Writer:
                 output_name = entry.get('label', OUTPUT_NAME_FAILED), entry.get('barcode')
                 input_name = os.path.join(self.input_dir, entry['filename'])
                 f5rd = Fast5Reader(input_name, entry['read_id'])
+                f5wt = next(self.getf5hdl[output_name])
                 try:
-                    f5rd.copyto(self.f5files[output_name])
+                    f5rd.copyto(f5wt)
                 except DuplicatedReadError as exc:
                     pass # Ignore duplicated reads for now.
-                else:
-                    self.post_write(output_name)
 
 
 class SequencingSummaryWriter:
