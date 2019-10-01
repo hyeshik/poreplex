@@ -77,7 +77,6 @@ setup(
         'scipy >= 1.0',
         'urwid >= 2.0.0',
         'tensorflow >= 1.8.0',
-        'Keras >= 2.1.6'
     ],
     extras_require={
         'live': extra_dependencies_live,

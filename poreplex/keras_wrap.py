@@ -30,8 +30,8 @@ __all__ = ['tensorflow', 'keras']
 try: # Suppress warnings and informative messages from keras and tf.
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     sys.stderr, saved_stderr = StringIO(), sys.stderr
-    import keras
+    from tensorflow import keras
     import tensorflow
-    tensorflow.logging.set_verbosity(tensorflow.logging.ERROR)
+    tensorflow.get_logger().setLevel('ERROR')
 finally:
     sys.stderr = saved_stderr
