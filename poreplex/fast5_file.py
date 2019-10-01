@@ -131,7 +131,11 @@ class Fast5Reader:
                         dtype=np.float32)
 
     def get_basecall(self, analysis_group='Basecall_1D'):
-        analnode = self.handle[self.analyses_node]
+        try:
+            analnode = self.handle[self.analyses_node]
+        except KeyError:
+            return
+
         analgroups = [name for name in analnode.keys() if name.startswith(analysis_group)]
         if len(analgroups) < 1:
             return

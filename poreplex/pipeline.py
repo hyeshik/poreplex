@@ -28,6 +28,7 @@ import sys
 import os
 from io import StringIO
 from itertools import cycle
+from collections import defaultdict
 from concurrent.futures import (
     ProcessPoolExecutor, CancelledError, ThreadPoolExecutor)
 from concurrent.futures.process import BrokenProcessPool
@@ -86,6 +87,7 @@ class ProcessingSession:
         self.next_batch_id = 0
         self.reads_done = set()
         self.active_batches = 0
+        self.error_status_counts = defaultdict(int)
         self.jobstack = []
 
         self.config = config
@@ -224,6 +226,8 @@ class ProcessingSession:
                     self.reads_queued -= 1
                     self.reads_found -= 1
 
+                self.error_status_counts[result['status']] += 1
+
             if nd_results:
                 if self.config['fastq_output']:
                     await self.run_in_executor_io(self.fastq_writer.write_sequences, nd_results)
@@ -244,6 +248,18 @@ class ProcessingSession:
                 await self.run_in_executor_io(self.seqsummary_writer.write_results, nd_results)
 
                 self.finalsummary_tracker.feed_results(nd_results)
+
+            if (self.error_status_counts['okay'] == 0 and self.running and
+                    self.error_status_counts['not_basecalled'] >=
+                        self.config['nobasecall_stop_trigger']):
+
+                stopmsg = ('Early stopping: {} out of {} reads are not basecalled. '
+                           'Please check if the files are correctly analyzed, or '
+                           'add `--basecall\' to the command line.'.format(
+                                self.error_status_counts['not_basecalled'],
+                                sum(self.error_status_counts.values())))
+                self.logger.error(stopmsg)
+                self.errx(stopmsg)
 
         except (CancelledError, BrokenProcessPool):
             return

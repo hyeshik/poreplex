@@ -292,6 +292,7 @@ def main(args):
     config['minimap2_index'] = args.align if args.align else None
     config['label_names'], config['barcode_names'], config['output_layout'] = \
         setup_output_name_mapping(config)
+    config['nobasecall_stop_trigger'] = 1000
 
     fix_options(config)
 

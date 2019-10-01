@@ -6,6 +6,9 @@
 - Added a support for basecalls from the Guppy's flip-flop model.
 - `--fast5` now writes multi-read FAST5 files by default. `--symlink-fast5`
   is removed as symbolic links are not compatible with multi-read FAST5s.
+- Poreplex now stops processing when it seems that the whole bunch of FAST5
+  files are not basecalled. (It stops on the 1000th non-basecalled read while
+  no read had been processed correctly.)
 
 ## [0.4.1] - 2019-02-27
 
