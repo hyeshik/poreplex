@@ -9,6 +9,8 @@
 - Poreplex now stops processing when it seems that the whole bunch of FAST5
   files are not basecalled. (It stops on the 1000th non-basecalled read while
   no read had been processed correctly.)
+- For the dashboard view, the first part delimited by '|' of identifier in
+  the minimap2 index is used for display or mapping to transcript names.
 
 ## [0.4.1] - 2019-02-27
 

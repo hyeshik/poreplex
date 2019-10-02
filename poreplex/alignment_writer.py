@@ -155,6 +155,9 @@ class AlignmentWriter:
             if mapped_seqname is None:
                 mapped_seqname = row[2]
             writer.write(row)
+
+        if mapped_seqname is not None and not mapped_seqname.startswith('|'):
+            mapped_seqname = mapped_seqname.split('|')[0]
         return mapped_seqname
 
     def process(self, results):
