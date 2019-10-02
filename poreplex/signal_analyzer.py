@@ -62,10 +62,10 @@ class SignalAnalyzer:
 
     _EVENT_DUMP_FIELD_NAMES = [
         'mean', 'start', 'stdv', 'length', 'model_state',
-        'move', 'weights', 'pos', 'end', 'scaled_mean']
+        'move', 'pos', 'end', 'scaled_mean']
     _EVENT_DUMP_FIELD_DTYPES = [
-        '<f4', '<u8', '<f4', '<u8', None, '<i4',
-        '<f4', '<u8', '<u8', '<f8']
+        '<f4', '<u8', '<f4', '<u8', None,
+        '<i4', '<u8', '<u8', '<f8']
     EVENT_DUMP_FIELDS = list(zip(_EVENT_DUMP_FIELD_NAMES, _EVENT_DUMP_FIELD_DTYPES))
 
     def __init__(self, config, batchid):
