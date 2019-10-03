@@ -240,9 +240,7 @@ class DashboardView:
             return frame
 
     def add_wait_notice_widget(self, widget, delay_seconds):
-        message = ("Waiting for the first update of results. In live mode, "
-                   "an analysis starts on {} seconds later to compensate "
-                   "many potential problems from the filesystem delays.".format(delay_seconds))
+        message = "Waiting for the first update of results."
         lines = 5
         title = "Please wait for a while"
 
