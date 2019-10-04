@@ -241,13 +241,13 @@ class DashboardView:
 
     def add_wait_notice_widget(self, widget, delay_seconds):
         message = "Waiting for the first update of results."
-        lines = 5
+        lines = 3
         title = "Please wait for a while"
 
         waitbox = urwid.AttrWrap(urwid.LineBox(urwid.Filler(urwid.AttrWrap(
             urwid.Text(message), 'modal text')),
             title=title), 'modal frame')
-        return urwid.Overlay(waitbox, widget, align='center', width=58, valign='middle',
+        return urwid.Overlay(waitbox, widget, align='center', width=40, valign='middle',
                              height=lines)
 
     def build_read_stats_widget(self, title):
