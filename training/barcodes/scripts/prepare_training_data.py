@@ -59,6 +59,12 @@ class TemporaryDirectory(object):
             sp.check_call(['cat'] + infiles, stdout=outfile)
 
 
+def normalize_signal(sig):
+    med = np.median(sig)
+    mad = np.median(np.abs(sig - med))
+    return (sig - med) / (mad * 1.4826)
+
+
 def process(signal_file, signal_trim_length, output_path, read_ids):
     with h5py.File(signal_file, 'r') as h5, open(output_path, 'wb') as arrayout:
         sigbuf = []
@@ -67,10 +73,12 @@ def process(signal_file, signal_trim_length, output_path, read_ids):
         for read_id in read_ids:
             signal = siggroup['{}/{}'.format(read_id[:3], read_id)][:]
             if len(signal) < signal_trim_length:
-                signal = np.pad(signal,
+                signal = np.pad(normalize_signal(signal),
                     (signal_trim_length - len(signal), 0), 'constant')
             elif len(signal) > signal_trim_length:
-                signal = signal[-signal_trim_length:]
+                signal = normalize_signal(signal[-signal_trim_length:])
+            else:
+                signal = normalize_signal(signal)
 
             sigbuf.append(signal.astype(OUTPUT_DTYPE))
 

@@ -28,7 +28,6 @@ from tensorflow.compat.v1.keras.layers import CuDNNLSTM, CuDNNGRU
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.callbacks import (
     Callback, EarlyStopping, CSVLogger, ModelCheckpoint, TensorBoard)
-from tensorflow.keras.utils import multi_gpu_model
 import tensorflow as tf
 import shutil
 from time import time
