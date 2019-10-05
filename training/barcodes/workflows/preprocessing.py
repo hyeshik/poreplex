@@ -7,8 +7,7 @@ rule preprocess:
         input_dir = config['data'][wildcards.name]
         output_dir = os.path.dirname(output.bookmark_file)
         shell('poreplex --input "{input_dir}" --output "{output_dir}" --parallel {threads} \
-                --dump-adapter-signals --dump-basecalled-events --trim-adapter \
-                --fast5 --symlink-fast5 --basecall')
+                --dump-adapter-signals --dump-basecalled-events --trim-adapter -y')
         shell('touch {output.bookmark_file}')
 
 
