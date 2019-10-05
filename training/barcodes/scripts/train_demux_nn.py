@@ -22,12 +22,13 @@
 #
 
 import h5py
-from keras.layers import (
-    Dense, Dropout, LSTM, GaussianNoise, CuDNNLSTM, Bidirectional)
-from keras.layers import TimeDistributed
-from keras.models import Sequential
-from keras.callbacks import Callback, EarlyStopping, CSVLogger, ModelCheckpoint, TensorBoard
-from keras.utils.training_utils import multi_gpu_model
+from tensorflow.keras.layers import (
+    Dense, Dropout, LSTM, GRU, GaussianNoise, Bidirectional)
+from tensorflow.compat.v1.keras.layers import CuDNNLSTM, CuDNNGRU
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.callbacks import (
+    Callback, EarlyStopping, CSVLogger, ModelCheckpoint, TensorBoard)
+from tensorflow.keras.utils import multi_gpu_model
 import tensorflow as tf
 import shutil
 from time import time
@@ -50,6 +51,9 @@ class CustomModelCheckpoint(Callback):
         self.best_loss = self.best_val_loss = None
 
     def on_epoch_end(self, epoch, logs=None):
+        if 'loss' not in logs: # maybe in termination
+            return
+
         if self.best_loss is None or logs['loss'] < self.best_loss:
             self.model_for_saving.save_weights(self.besttraining_output, overwrite=True)
             self.best_loss = logs['loss']
@@ -98,7 +102,6 @@ def build_layers_LSTM1(input_shape, num_classes, cudnn=False):
     return model
 
 def build_layers_GRU1(input_shape, num_classes, cudnn=False):
-    from keras.layers import CuDNNGRU, GRU
     if cudnn:
         gru_layer = CuDNNGRU
         lstm_options = {}
@@ -127,14 +130,12 @@ def create_model(params, layerdef, input_shape, num_classes):
         model = globals()['build_layers_' + layerdef](input_shape, num_classes, cudnn=True)
 
     print('Compiling...')
-
-    if params['ngpu'] > 1:
-        pmodel = multi_gpu_model(model, gpus=params['ngpu'])
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
+        pmodel = globals()['build_layers_' + layerdef](input_shape, num_classes, cudnn=True)
         pmodel.compile(loss='categorical_crossentropy',
                        optimizer=params['optimizer'],
                        metrics=['accuracy'])
-    else:
-        pmodel = model
 
     model.compile(loss='categorical_crossentropy',
                   optimizer=params['optimizer'],
