@@ -33,6 +33,7 @@ import os
 from concurrent import futures
 
 OUTPUT_DTYPE = np.float32
+PAD_VALUE = -1000.
 
 class TemporaryDirectory(object):
     def __init__(self, root='.'):
@@ -62,7 +63,7 @@ class TemporaryDirectory(object):
 def normalize_signal(sig):
     med = np.median(sig)
     mad = np.median(np.abs(sig - med))
-    return (sig - med) / (mad * 1.4826)
+    return (sig - med) / max(0.01, (mad * 1.4826))
 
 
 def process(signal_file, signal_trim_length, output_path, read_ids):
@@ -74,7 +75,8 @@ def process(signal_file, signal_trim_length, output_path, read_ids):
             signal = siggroup['{}/{}'.format(read_id[:3], read_id)][:]
             if len(signal) < signal_trim_length:
                 signal = np.pad(normalize_signal(signal),
-                    (signal_trim_length - len(signal), 0), 'constant')
+                    (signal_trim_length - len(signal), 0), 'constant',
+                    constant_values=PAD_VALUE)
             elif len(signal) > signal_trim_length:
                 signal = normalize_signal(signal[-signal_trim_length:])
             else:
