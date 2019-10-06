@@ -194,7 +194,7 @@ rule subsample_training_inputs:
 
         print('==> One-hot encoding')
         ohencoder = OneHotEncoder(sparse=False,
-                                  categories=list(range(len(indexcounts)+decoycount)))
+                                  categories=[list(range(len(indexcounts)+decoycount))])
         train_onehot = ohencoder.fit_transform(train_labels[:, np.newaxis]).astype(np.float32)
         test_onehot = ohencoder.fit_transform(test_labels[:, np.newaxis]).astype(np.float32)
 
