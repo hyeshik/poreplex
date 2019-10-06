@@ -32,6 +32,7 @@ import os
 
 START_MARK = -10000.
 END_MARK = 10000
+PAD_VALUE = -1000.
 
 
 def load_adapter_list(adapter_source):
@@ -129,13 +130,18 @@ def generate_random_signal(slice_signals, start_slices, internal_slices, stitchi
     except IndexError:
         return []
 
+def normalize_signal(sig):
+    med = np.median(sig)
+    mad = np.median(np.abs(sig - med))
+    return (sig - med) / max(0.01, (mad * 1.4826))
+
 if __name__ == '__main__':
     import sys
     import yaml
 
     seed(922)
 
-    config = yaml.load(open('config.yaml'))['decoy_signal_generation']
+    config = yaml.load(open('config.yaml'), Loader=yaml.FullLoader)['decoy_signal_generation']
 
     meansig_stride = config['mean_signal_stride']
     fragment_oversampling_rate = config['fragment_oversampling_rate']
@@ -198,9 +204,13 @@ if __name__ == '__main__':
             histtogo[binno] -= 1
 
             if len(rsig) > output_length:
-                rsig = rsig[-output_length:]
+                rsig = normalize_signal(rsig[-output_length:])
             elif len(rsig) < output_length:
-                rsig = np.pad(rsig, [output_length - len(rsig), 0], 'constant')
+                rsig = np.pad(normalize_signal(rsig),
+                              [output_length - len(rsig), 0], 'constant',
+                              constant_values=PAD_VALUE)
+            else:
+                rsig = normalize_signal(rsig)
 
             produced_sigs.append(rsig)
             if len(produced_sigs) % 100 == 0:
