@@ -115,7 +115,7 @@ rule prepare_training_data:
         catalog='tables/selected-signal-matches-{run}.txt',
         adapter_signal_file='{run}/adapter-dumps/inventory.h5'
     output: 'arrays/full-training-{run}.npy'
-    threads: 40
+    threads: 10
     run:
         import os
         cfg = config['train_data_transform']
