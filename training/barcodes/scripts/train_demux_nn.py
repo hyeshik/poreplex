@@ -202,10 +202,10 @@ def train_model(model, pmodel, global_params, training_data, output_dir):
 
 def evaluate_model(pmodel, global_params, testdata, output_dir):
     print('Evaluating the model performance...')
-    loss, acc = pmodel.evaluate(testdata['signals'], testdata['onehot'],
+    loss, acc, w_acc = pmodel.evaluate(testdata['signals'], testdata['onehot'],
                                 batch_size=global_params['batchsize_eval'],
                                 verbose=False)
-    print(loss, acc, file=open(output_dir + '/evaluation.txt', 'w'), sep='\t')
+    print(loss, acc, w_acc, file=open(output_dir + '/evaluation.txt', 'w'), sep='\t')
     print('== Evaluation result ==')
     print(' * Test loss:', loss)
     print(' * Test accuracy:', acc)
