@@ -22,6 +22,7 @@
 #
 
 import h5py
+from weighted_metrics import WeightedCategoricalCrossentropy, WeightedCategoricalAccuracy
 from tensorflow.keras.layers import (
     Dense, Dropout, LSTM, GRU, GaussianNoise, Bidirectional)
 from tensorflow.compat.v1.keras.layers import CuDNNLSTM, CuDNNGRU
@@ -50,7 +51,7 @@ class CustomModelCheckpoint(Callback):
         self.best_loss = self.best_val_loss = None
 
     def on_epoch_end(self, epoch, logs=None):
-        if 'loss' not in logs: # maybe in termination
+        if 'loss' not in logs or 'val_loss' not in logs: # maybe in termination
             return
 
         if self.best_loss is None or logs['loss'] < self.best_loss:
@@ -88,7 +89,7 @@ def build_layers_LSTM1(input_shape, num_classes, cudnn=False):
 
     model = Sequential()
 
-    model.add(GaussianNoise(1.5, input_shape=input_shape))
+    model.add(GaussianNoise(0.05, input_shape=input_shape))
 
     model.add(Bidirectional(lstm_layer(48, return_sequences=True, **lstm_options)))
     model.add(Dropout(0.2))
@@ -111,7 +112,7 @@ def build_layers_GRU1(input_shape, num_classes, cudnn=False):
 
     model = Sequential()
 
-    model.add(GaussianNoise(1.5, input_shape=input_shape))
+    model.add(GaussianNoise(0.05, input_shape=input_shape))
 
     model.add(Bidirectional(gru_layer(48, return_sequences=True, **lstm_options)))
     model.add(Dropout(0.2))
@@ -123,7 +124,17 @@ def build_layers_GRU1(input_shape, num_classes, cudnn=False):
 
     return model
 
+def create_metric_functions(params, num_classes):
+    cost_matrix = np.ones([num_classes, num_classes], dtype=np.float64)
+    cost_matrix[1:, 1:] *= params['metrics']['cross_contamination_penalty']
+    WeightedCategoricalAccuracy.name = 'w_acc'
+    lossfun = WeightedCategoricalCrossentropy(cost_matrix)
+    accfun = WeightedCategoricalAccuracy(cost_matrix)
+    return lossfun, accfun
+
 def create_model(params, layerdef, input_shape, num_classes):
+    lossfun, accfun = create_metric_functions(params, num_classes)
+
     print('Creating model...')
     with tf.device('/cpu:0'):
         model = globals()['build_layers_' + layerdef](input_shape, num_classes, cudnn=True)
@@ -132,26 +143,29 @@ def create_model(params, layerdef, input_shape, num_classes):
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
         pmodel = globals()['build_layers_' + layerdef](input_shape, num_classes, cudnn=True)
-        pmodel.compile(loss='categorical_crossentropy',
+        pmodel.compile(loss=lossfun,
                        optimizer=params['optimizer'],
-                       metrics=['accuracy'])
+                       metrics=['accuracy', accfun])
 
-    model.compile(loss='categorical_crossentropy',
+    model.compile(loss=lossfun,
                   optimizer=params['optimizer'],
-                  metrics=['accuracy'])
+                  metrics=['accuracy', accfun])
 
     print('  - done.')
 
     return model, pmodel
 
-def convert_model_to_noncudnn(layerdef, input_file, output_file, input_shape, num_outputs,
+def convert_model_to_noncudnn(layerdef, input_file, output_file, input_shape, num_classes,
                               params):
+    lossfun, accfun = create_metric_functions(params, num_classes)
+
     with tf.device('/cpu:0'):
         build_layers = globals()['build_layers_' + layerdef]
-        cpu_model = build_layers(input_shape, num_outputs, cudnn=False)
+        cpu_model = build_layers(input_shape, num_classes, cudnn=False)
 
-        cpu_model.compile(loss='categorical_crossentropy',
-                          optimizer=params['optimizer'], metrics=['accuracy'])
+        cpu_model.compile(loss=lossfun,
+                          optimizer=params['optimizer'],
+                          metrics=['accuracy', accfun])
 
     cpu_model.load_weights(input_file)
     cpu_model.save(output_file)
@@ -189,7 +203,8 @@ def train_model(model, pmodel, global_params, training_data, output_dir):
 def evaluate_model(pmodel, global_params, testdata, output_dir):
     print('Evaluating the model performance...')
     loss, acc = pmodel.evaluate(testdata['signals'], testdata['onehot'],
-                                 batch_size=global_params['batchsize_eval'])
+                                batch_size=global_params['batchsize_eval'],
+                                verbose=False)
     print(loss, acc, file=open(output_dir + '/evaluation.txt', 'w'), sep='\t')
     print('== Evaluation result ==')
     print(' * Test loss:', loss)
@@ -200,7 +215,7 @@ def predict_test_classifications(pmodel, global_params, testdata, output_dir):
     print('Making predictions for testing data...')
     predmtx = pmodel.predict(testdata['signals'],
                              batch_size=global_params['batchsize_test'],
-                             verbose=1)
+                             verbose=False)
     np.save(output_dir + '/test-prediction-output.npy', predmtx)
 
     predlabels = np.argmax(predmtx, axis=1)

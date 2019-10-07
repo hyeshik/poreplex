@@ -1,7 +1,7 @@
 flowcell: FLO-MIN106
 kit: SQK-RNA001
 data:
-  MXG3.2: /arena/hyeshik/nanopore-data/20180622_0535_Mux_yeast/fast5
+  MXG3.2: /tink/hyeshik/p/nara/works/180622-MUX3.2/guppy/workspace
 reference_transcriptomes:
   - [ath, refs/ath-all.fa.gz]
   - [hsa, refs/hsa-all.fa.gz]
@@ -47,8 +47,10 @@ training_parameters:
     batchsize_test: 2048
     optimizer: adam
     model_checkpoint_period: 1
-    earlystopping_min_delta: 0.001
-    earlystopping_patience: 30
+    earlystopping_min_delta: 0.002
+    earlystopping_patience: 15
+    metrics:
+      cross_contamination_penalty: 2
   layer_designs:
     - LSTM1
     - GRU1
