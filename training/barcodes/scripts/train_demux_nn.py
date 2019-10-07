@@ -24,8 +24,7 @@
 import h5py
 from weighted_metrics import WeightedCategoricalCrossentropy, WeightedCategoricalAccuracy
 from tensorflow.keras.layers import (
-    Dense, Dropout, LSTM, GRU, GaussianNoise, Bidirectional)
-from tensorflow.compat.v1.keras.layers import CuDNNLSTM, CuDNNGRU
+    Dense, Dropout, GaussianNoise, Bidirectional)
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.callbacks import (
     Callback, EarlyStopping, CSVLogger, ModelCheckpoint, TensorBoard)
@@ -80,21 +79,21 @@ def load_data(datapath, datatype):
         return currentgroup
 
 def build_layers_LSTM1(input_shape, num_classes, cudnn=False):
-    if cudnn:
-        lstm_layer = CuDNNLSTM
-        lstm_options = {}
-    else:
-        lstm_layer = LSTM
-        lstm_options = {'recurrent_activation': 'sigmoid'}
+    def lstm_layer(units, return_sequences):
+        if cudnn:
+            return tf.keras.layers.LSTM(units=units, return_sequences=return_sequences)
+        else:
+            return tf.keras.layers.RNN(tf.keras.layers.LSTMCell(units=units),
+                                       return_sequences=return_sequences)
 
     model = Sequential()
 
     model.add(GaussianNoise(0.05, input_shape=input_shape))
 
-    model.add(Bidirectional(lstm_layer(48, return_sequences=True, **lstm_options)))
+    model.add(Bidirectional(lstm_layer(units=48, return_sequences=True)))
     model.add(Dropout(0.2))
 
-    model.add(lstm_layer(64, return_sequences=False, **lstm_options))
+    model.add(lstm_layer(units=64, return_sequences=False))
     model.add(Dropout(0.3))
 
     model.add(Dense(num_classes, activation='softmax'))
@@ -102,22 +101,21 @@ def build_layers_LSTM1(input_shape, num_classes, cudnn=False):
     return model
 
 def build_layers_GRU1(input_shape, num_classes, cudnn=False):
-    if cudnn:
-        gru_layer = CuDNNGRU
-        lstm_options = {}
-    else:
-        gru_layer = GRU
-        lstm_options = {'recurrent_activation': 'sigmoid', 'reset_after': True,
-                        'implementation': 2}
+    def gru_layer(units, return_sequences):
+        if cudnn:
+            return tf.keras.layers.GRU(units=units, return_sequences=return_sequences)
+        else:
+            return tf.keras.layers.RNN(tf.keras.layers.GRUCell(units=units),
+                                       return_sequences=return_sequences)
 
     model = Sequential()
 
     model.add(GaussianNoise(0.05, input_shape=input_shape))
 
-    model.add(Bidirectional(gru_layer(48, return_sequences=True, **lstm_options)))
+    model.add(Bidirectional(gru_layer(units=48, return_sequences=True)))
     model.add(Dropout(0.2))
 
-    model.add(gru_layer(64, return_sequences=False, **lstm_options))
+    model.add(gru_layer(units=64, return_sequences=False))
     model.add(Dropout(0.3))
 
     model.add(Dense(num_classes, activation='softmax'))
@@ -155,20 +153,28 @@ def create_model(params, layerdef, input_shape, num_classes):
 
     return model, pmodel
 
-def convert_model_to_noncudnn(layerdef, input_file, output_file, input_shape, num_classes,
-                              params):
-    lossfun, accfun = create_metric_functions(params, num_classes)
+def convert_model_to_noncudnn(layerdef, cudamodel, global_params, training_data, output_dir):
+    num_classes = training_data['weights'].shape[0]
+    input_shape = training_data['signals'].shape[1:]
+    lossfun, accfun = create_metric_functions(global_params, num_classes)
 
     with tf.device('/cpu:0'):
         build_layers = globals()['build_layers_' + layerdef]
         cpu_model = build_layers(input_shape, num_classes, cudnn=False)
+        cpu_model.set_weights(cudamodel.get_weights())
 
         cpu_model.compile(loss=lossfun,
-                          optimizer=params['optimizer'],
+                          optimizer=global_params['optimizer'],
                           metrics=['accuracy', accfun])
 
-    cpu_model.load_weights(input_file)
-    cpu_model.save(output_file)
+        cpu_model.fit(training_data['signals'],
+                      training_data['onehot'],
+                      batch_size=global_params['batchsize_train'],
+                      validation_split=global_params['validation_split'],
+                      epochs=1, verbose=1,
+                      class_weight=training_data['weights'])
+
+    cpu_model.save(os.path.join(output_dir, 'final-model.hdf5'))
     return cpu_model
 
 def train_model(model, pmodel, global_params, training_data, output_dir):
@@ -197,7 +203,7 @@ def train_model(model, pmodel, global_params, training_data, output_dir):
                       verbose=1, callbacks=callbacks,
                       class_weight=training_data['weights'])
 
-    model.save(output_dir + '/final-cudamodel.hdf5')
+    model.save(os.path.join(output_dir, 'final-cudamodel.hdf5'))
 
 
 def evaluate_model(pmodel, global_params, testdata, output_dir):
@@ -211,12 +217,12 @@ def evaluate_model(pmodel, global_params, testdata, output_dir):
     print(' * Test accuracy:', acc)
 
 
-def predict_test_classifications(pmodel, global_params, testdata, output_dir):
+def predict_classifications(pmodel, global_params, testdata, output_prefix):
     print('Making predictions for testing data...')
     predmtx = pmodel.predict(testdata['signals'],
                              batch_size=global_params['batchsize_test'],
                              verbose=False)
-    np.save(output_dir + '/test-prediction-output.npy', predmtx)
+    np.save(output_prefix + '.npy', predmtx)
 
     predlabels = np.argmax(predmtx, axis=1)
     predlabel_probs = np.amax(predmtx, axis=1)
@@ -228,7 +234,7 @@ def predict_test_classifications(pmodel, global_params, testdata, output_dir):
         'pred_prob': predlabel_probs,
     }).set_index('read_id')
 
-    summary_table.to_csv(output_dir + '/test-predictions.txt', sep='\t')
+    summary_table.to_csv(output_prefix + '.txt', sep='\t')
 
 
 def main(global_params, layer_def, dataset_file, output_dir):
@@ -250,23 +256,20 @@ def main(global_params, layer_def, dataset_file, output_dir):
 
     print('Adopting the weights to a new model for CPU')
     cpu_model = \
-        convert_model_to_noncudnn(layer_def,
-                                  os.path.join(output_dir, 'final-cudamodel.hdf5'),
-                                  os.path.join(output_dir, 'final-model.hdf5'),
-                                  training_data['signals'].shape[1:],
-                                  training_data['weights'].shape[0],
-                                  global_params)
-
-    del training_data
-
-    testdata = load_data(dataset_file, 'testing')
+        convert_model_to_noncudnn(layer_def, pmodel, global_params,
+                                  training_data, output_dir)
 
     print('Evaluation of the CUDA model')
-    predict_test_classifications(pmodel, global_params, testdata, output_dir)
-    evaluate_model(pmodel, global_params, testdata, output_dir)
+    predict_classifications(pmodel, global_params, training_data,
+                            os.path.join(output_dir, 'training-predictions'))
+    del training_data
+    test_data = load_data(dataset_file, 'testing')
+    predict_classifications(pmodel, global_params, test_data,
+                            os.path.join(output_dir, 'test-predictions'))
+    evaluate_model(pmodel, global_params, test_data, output_dir)
 
     print('Evaluation of the CPU model')
-    evaluate_model(cpu_model, global_params, testdata, output_dir)
+    evaluate_model(cpu_model, global_params, test_data, output_dir)
 
 
 if __name__ == '__main__':
