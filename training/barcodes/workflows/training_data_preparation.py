@@ -221,16 +221,4 @@ rule subsample_training_inputs:
             grp['weights'] = clsweight_test
 
 
-rule train_demux_nn:
-    input: 'traindata/signals-{run}-s{size}-t{trim}.hdf5'
-    output: 'models/{run}-s{size}-t{trim}-l{preset}/test-predictions.txt'
-    threads: 99
-    run:
-        import json
-        import subprocess as sp
-        global_params = json.dumps(config['training_parameters']['global'])
-        sp.check_call(['scripts/train_demux_nn.py', global_params, wildcards.preset,
-                      input[0], os.path.dirname(output[0])])
-
-
 # ex: syntax=snakemake sw=4 sts=4 et

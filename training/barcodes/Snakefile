@@ -22,4 +22,4 @@ include: 'workflows/preprocessing.py'
 include: 'workflows/prepare_references.py'
 include: 'workflows/sequence_alignments.py'
 include: 'workflows/training_data_preparation.py'
-
+include: 'workflows/perform_training.py'
