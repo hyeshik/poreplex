@@ -277,6 +277,7 @@ def main(args):
     config['tmpdir'] = args.tmpdir if args.tmpdir else os.path.join(args.output, 'tmp')
     config['cleanup_tmpdir'] = False # will be changed during creation of output dirs
     config['barcoding'] = args.barcoding
+    config['barcoding_quality_filter'] = args.barcoding_quality_filter
     config['measure_polya'] = args.polya
     config['filter_unsplit_reads'] = args.filter_chimera
     config['batch_chunk_size'] = args.batch_size
@@ -351,6 +352,9 @@ def __main__():
     group = parser.add_argument_group('Optional Analyses')
     group.add_argument('--barcoding', default=False, action='store_true',
                        help='sort barcoded reads into separate outputs')
+    group.add_argument('--barcoding-quality-filter', default=18, type=int, metavar='SCORE',
+                       help='ignore barcode patterns having quality scores lower than SCORE '
+                            'in phred-scale (default: 18)')
     group.add_argument('--polya', default=False, action='store_true',
                        help='output poly(A) tail length measurements')
     group.add_argument('--basecall', default=False, action='store_true',
