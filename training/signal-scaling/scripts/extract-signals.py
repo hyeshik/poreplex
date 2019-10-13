@@ -21,8 +21,7 @@
 # THE SOFTWARE.
 #
 
-from ont_fast5_api.fast5_file import Fast5File
-from ont_fast5_api.analysis_tools.basecall_1d import Basecall1DTools
+from poreplex.fast5_file import Fast5Reader
 from sklearn.linear_model import TheilSenRegressor
 import h5py
 import pandas as pd
@@ -45,8 +44,11 @@ def calculate_scaling_params(events, kmer_mean_levels):
     statelevels = []
     statelevels_jump = []
     for pos, posevents in events.groupby('pos'):
-        medlevel = posevents['mean'].median()
         state = posevents['model_state'].iloc[0]
+        if '_' in state:
+            continue
+
+        medlevel = posevents['mean'].median()
         if pos in nonjump_positions:
             statelevels.append([medlevel, kmer_mean_levels[state]])
         else:
@@ -60,7 +62,7 @@ def calculate_scaling_params(events, kmer_mean_levels):
     return regr.coef_[0], regr.intercept_
 
 def read_raw_signal(handle):
-    raw_signal = handle.get_raw_data(scale=True)
+    raw_signal = handle.get_raw_data()
     num_windows = min(SIGNAL_LENGTH, len(raw_signal)) // SIGNAL_MEAN_STRIDE
 
     meanlevels = raw_signal[:num_windows * SIGNAL_MEAN_STRIDE
@@ -70,8 +72,13 @@ def read_raw_signal(handle):
                             'constant')
     return meanlevels
 
-def process_read(filename, events, kmer_mean_levels):
-    with Fast5File(filename) as f5:
+def process_read(filename, read_id, kmer_mean_levels):
+    with Fast5Reader(filename, read_id) as f5:
+        try:
+            events = f5.get_basecall()['events']
+        except KeyError:
+            return None
+
         scaling_params = calculate_scaling_params(events, kmer_mean_levels)
         if scaling_params is None:
             return
@@ -80,31 +87,20 @@ def process_read(filename, events, kmer_mean_levels):
 
         return signal_snippet, np.array(scaling_params)
 
-def process_all(seqsummary_file, kmermodel_file, events_file,
-                signals_output, scparams_output):
+def process_all(seqsummary_file, kmermodel_file, signals_output, scparams_output):
     kmermodel = pd.read_table(kmermodel_file)
-    kmer_mean_levels = {
-        k.encode(): v
-        for k, v in kmermodel.set_index('kmer')['level_mean'].to_dict().items()}
+    kmer_mean_levels = kmermodel.set_index('kmer')['level_mean'].to_dict()
 
     sigout = open(signals_output, 'wb')
     paramout = open(scparams_output, 'wb')
 
     rrtbl = pd.read_table(seqsummary_file, low_memory=False, compression='gzip')
 
-    with h5py.File(events_file, 'r') as evf:
-        for _, row in rrtbl.iterrows():
-            read_id = row['read_id']
-            try:
-                events = pd.DataFrame(
-                    evf['/basecalled_events/{}/{}'.format(read_id[:3], read_id)][:])
-            except KeyError:
-                continue
-
-            res = process_read(row['filename'], events, kmer_mean_levels)
-            if res is not None:
-                sigout.write(res[0].tobytes())
-                paramout.write(res[1].tobytes())
+    for _, row in rrtbl.iterrows():
+        res = process_read(row.filename, row.read_id, kmer_mean_levels)
+        if res is not None:
+            sigout.write(res[0].tobytes())
+            paramout.write(res[1].tobytes())
 
 if __name__ == '__main__':
     import sys

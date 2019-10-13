@@ -1,5 +1,5 @@
 SOURCE_DATA = [
-    'CC1', 'CC2', 'HeLa1', 'HeLa2', 'MUX1',
+    'CC1', 'CC2', 'HeLa1', 'HeLa2', 'MUX1', 'MUX2'
 ]
 
 ARRAY_DTYPES = {
@@ -19,11 +19,6 @@ TRAINING_STDEV_BOOST = 1.8
 
 KMERMODEL = '../../poreplex/kmer_models/r9.4_180mv_70bps_5mer_RNA/template_median69pA.model'
 
-# Site specific prefix for the singularity environment
-import subprocess
-if subprocess.check_output('whoami').decode().strip() == 'hyeshik':
-    shell.prefix('set -o pipefail; sing ')
-
 rule all:
     input:
         expand('dataarrays/{type}-{run}.{sufx}',
@@ -39,9 +34,9 @@ rule split_reads_to_tasks:
         import pandas as pd
 
         seqtbl = pd.read_table(input[0], low_memory=False)
-        fast5pathfmt = os.path.abspath(os.path.dirname(input[0])) + '/fast5/{}/{}'
+        fast5pathfmt = os.path.abspath(os.path.dirname(input[0])) + '/workspace/{}'
         seqtbl['filename'] = seqtbl.apply(lambda x:
-            fast5pathfmt.format(x['label'], x['filename']), axis=1)
+            fast5pathfmt.format(x['filename']), axis=1)
         seqtbl['binno'] = seqtbl.index.to_series() % SEQUENCE_SUBTASKS_SPLIT
 
         for binno, reads in seqtbl.groupby('binno'):
@@ -50,15 +45,14 @@ rule split_reads_to_tasks:
 
 rule extract_signals_and_scales:
     input:
-        seqtasks='readtbl/seqtasks-{run}/{taskno}.txt.gz',
-        events='sources/{run}/events/inventory.h5'
+        seqtasks='readtbl/seqtasks-{run}/{taskno}.txt.gz'
     output:
         signaldump=temp('dumptmp/signals/{run}-{taskno}.dmp'),
         scalingdump=temp('dumptmp/scaling/{run}-{taskno}.dmp')
     threads: 2
     shell:
         'python3 scripts/extract-signals.py {input.seqtasks} {KMERMODEL} \
-            {input.events} {output.signaldump} {output.scalingdump}'
+            {output.signaldump} {output.scalingdump}'
 
 rule merge_extracted_signals:
     input: expand('dumptmp/{{type}}/{{run}}-{taskno}.dmp', taskno=SEQUENCE_SUBTASKS_NUMBERS)
