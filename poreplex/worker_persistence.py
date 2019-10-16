@@ -67,7 +67,8 @@ class WorkerPersistenceStorage:
 
         if config['barcoding']:
             from .barcoding import BarcodeDemultiplexer
-            storage['demuxer'] = BarcodeDemultiplexer(config['demultiplexing'])
+            storage['demuxer'] = BarcodeDemultiplexer(config['demultiplexing'],
+                                                      config['barcoding_quality_filter'])
 
         if config['measure_polya']:
             from .polya import PolyASignalAnalyzer

@@ -134,7 +134,9 @@ class SequencingSummaryWriter:
 
         if config['barcoding']:
             self.barcode_mapping = barcode_mapping
-            self.output_fields.append('barcode')
+            self.output_fields.extend(['barcode', 'barcode_score',
+                                        #'barcode_guess'
+                                      ])
         else:
             self.barcode_mapping = None
 
@@ -170,6 +172,9 @@ class SequencingSummaryWriter:
                     output_entry['filename'] = self.format_filename(output_entry)
                     if self.barcode_mapping is not None:
                         output_entry['barcode'] = self.barcode_mapping[entry.get('barcode')]
+                        output_entry['barcode_score'] = entry.get('barcode_score', 0)
+                        #output_entry['barcode_guess'] = self.barcode_mapping[
+                        #    entry.get('barcode_guess')]
                     if self.polya_enabled:
                         output_entry['polya_dwell'] = (
                             format(entry['polya']['dwell_time'], '.4f')
@@ -234,7 +239,7 @@ class FinalSummaryTracker:
     FRIENDLY_LABELS = {
         'pass': 'Successfully processed',
         'fail': 'Processing failed',
-        'artifact': 'Possibly artifact',
+        'artifact': 'Possible artifact',
     }
     BARCODE_FRIENDLY_NAME = 'Barcoded sample {num} (BC{num})'
     FRIENDLY_STATUS = {

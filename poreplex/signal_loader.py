@@ -114,6 +114,7 @@ class NanoporeRead:
     fast5 = full_raw_signal = error_message = None
     sequence_length = mean_qscore = num_events = 0
     sequence = scaling_params = label = barcode = polya = None
+    barcode_bestguess = barcode_quality = None
 
     def __init__(self, filename, srcdir, read_id):
         self.fullpath = os.path.join(srcdir, filename)
@@ -140,8 +141,10 @@ class NanoporeRead:
     def set_label(self, newlabel):
         self.label = newlabel
 
-    def set_barcode(self, newbarcode):
+    def set_barcode(self, newbarcode, guess, quality):
         self.barcode = newbarcode
+        self.barcode_bestguess = guess
+        self.barcode_quality = quality
 
     def set_adapter_trimming_length(self, newlength):
         if self.sequence is None:
@@ -186,6 +189,8 @@ class NanoporeRead:
 
         if self.barcode is not None:
             rep['barcode'] = self.barcode
+            rep['barcode_guess'] = self.barcode_bestguess
+            rep['barcode_score'] = self.barcode_quality
 
         if self.polya is not None:
             rep['polya'] = self.polya

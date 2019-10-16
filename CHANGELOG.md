@@ -11,6 +11,12 @@
   no read had been processed correctly.)
 - For the dashboard view, the first part delimited by '|' of identifier in
   the minimap2 index is used for display or mapping to transcript names.
+- Barcode accuracy is reported for every read in `barcode_score` within
+  `sequencing_summary.txt` in phred-scale.
+
+### Changed
+- The barcode demultiplexer is updated to provide calibrated accuracy predictions
+  and a higher robustness to irregular signals.
 
 ## [0.4.1] - 2019-02-27
 
