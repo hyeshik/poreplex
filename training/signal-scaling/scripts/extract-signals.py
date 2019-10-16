@@ -73,12 +73,13 @@ def read_raw_signal(handle):
     return meanlevels
 
 def process_read(filename, read_id, kmer_mean_levels):
-    with Fast5Reader(filename, read_id) as f5:
-        try:
-            events = f5.get_basecall()['events']
-        except KeyError:
-            return None
+    try:
+        f5 = Fast5Reader(filename, read_id)
+    except KeyError:
+        return None
 
+    try:
+        events = f5.get_basecall()['events']
         scaling_params = calculate_scaling_params(events, kmer_mean_levels)
         if scaling_params is None:
             return
@@ -86,6 +87,8 @@ def process_read(filename, read_id, kmer_mean_levels):
         signal_snippet = read_raw_signal(f5)
 
         return signal_snippet, np.array(scaling_params)
+    finally:
+        f5.close()
 
 def process_all(seqsummary_file, kmermodel_file, signals_output, scparams_output):
     kmermodel = pd.read_table(kmermodel_file)
