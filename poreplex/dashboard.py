@@ -500,7 +500,7 @@ class DashboardView:
 
 def load_aliases(filename):
     return (
-        pd.read_table(filename, names=['contig', 'alias'], index_col=0)
+        pd.read_csv(filename, names=['contig', 'alias'], index_col=0, sep='\t')
             ['alias'].to_dict()
     )
 

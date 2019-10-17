@@ -61,7 +61,7 @@ class WorkerPersistenceStorage:
         storage = {
             'segmodel': load_segmentation_model(config['segmentation_model']),
             'unsplitmodel': load_segmentation_model(config['unsplit_read_detection_model']),
-            'kmermodel': pd.read_table(config['kmer_model'], header=0, index_col=0),
+            'kmermodel': pd.read_csv(config['kmer_model'], header=0, index_col=0, sep='\t'),
         }
         storage['kmersize'] = len(storage['kmermodel'].index[0])
 
