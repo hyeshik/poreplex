@@ -4,9 +4,11 @@ set -e -x
 # Install a system package required by our library
 yum install -y atlas-devel
 yum install -y zlib-devel
+yum install -y bzip2-devel
+yum install -y xz-devel
 
 # Compile wheels
-for PYBIN in /opt/python/cp3[56]*/bin; do
+for PYBIN in /opt/python/cp3[567]*/bin; do
     "${PYBIN}/pip" install -r /io/dev-requirements.txt
     "${PYBIN}/pip" wheel /io/ -w wheelhouse/
 done
