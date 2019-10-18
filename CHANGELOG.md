@@ -1,18 +1,18 @@
 # Changelog
 
-## [x.x] - 2019-mm-dd
+## [0.5] - 2019-10-18
 
 ### Added
 - Added a support for basecalls from the Guppy's flip-flop model.
 - `--fast5` now writes multi-read FAST5 files by default. `--symlink-fast5`
   is removed as symbolic links are not compatible with multi-read FAST5s.
+- Barcode accuracy is calibrated and reported for every read in
+  `barcode_score` within `sequencing_summary.txt` in phred-scale.
+- For the dashboard view, the first part delimited by '|' of identifier in
+  the minimap2 index is used for display or mapping to transcript names.
 - Poreplex now stops processing when it seems that the whole bunch of FAST5
   files are not basecalled. (It stops on the 1000th non-basecalled read while
   no read had been processed correctly.)
-- For the dashboard view, the first part delimited by '|' of identifier in
-  the minimap2 index is used for display or mapping to transcript names.
-- Barcode accuracy is reported for every read in `barcode_score` within
-  `sequencing_summary.txt` in phred-scale.
 
 ### Changed
 - The barcode demultiplexer is updated to provide calibrated accuracy predictions
