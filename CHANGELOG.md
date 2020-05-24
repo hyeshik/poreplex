@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- Fixed the compatibility with TensorFlow 2.2 for the signal scaler model.
+
 ## [0.5] - 2019-10-18
 
 ### Added
